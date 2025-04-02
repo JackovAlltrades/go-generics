@@ -1,0 +1,93 @@
+# Go / Build Artifacts
+# -----------------------------------
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.prof
+*.coverprofile
+*.a
+*.o
+
+# Compiled binary (if named after the project)
+go-generics
+go-generics.exe
+
+# Packages / Dependencies
+# -----------------------------------
+# vendor/ # Handled by Go Modules, usually not committed
+# node_modules/ # If frontend/JS tooling is added
+
+# Logs and Databases
+# -----------------------------------
+*.log
+*.log.*
+!*.log.keep
+*.sql
+*.sqlite
+
+# Environment Variables
+# -----------------------------------
+# Never commit secrets! Use .env.example for templates.
+.env
+.env.*
+!.env.example
+!.env.test
+
+# OS Specific Files
+# -----------------------------------
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+# Linux
+*~
+# Vim
+.*.swp
+.*.swx
+.*.swo
+
+# IDE / Editor Specific
+# -----------------------------------
+# JetBrains: IntelliJ, GoLand, etc.
+.idea/
+*.iml
+# VS Code
+.vscode/
+*.code-workspace
+.history/
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+# NetBeans
+nbproject/
+# Eclipse
+.project
+.classpath
+.settings/
+
+# Cache Directories
+# -----------------------------------
+.npm/
+.eslintcache
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Misc
+# -----------------------------------
+*.zip
+*.tar.gz
+*.rar
+coverage/
+build/
+dist/

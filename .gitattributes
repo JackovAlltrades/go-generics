@@ -1,0 +1,55 @@
+# Git Attributes for Go Generics Project
+# Enforce consistent line endings across platforms
+
+# Auto detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Explicitly force LF for common text files (redundant with above but clearer)
+*.go      text eol=lf linguist-detectable=true
+*.md      text eol=lf linguist-detectable=true
+*.sh      text eol=lf linguist-detectable=true
+*.json    text eol=lf linguist-detectable=true
+*.yaml    text eol=lf linguist-detectable=true
+*.yml     text eol=lf linguist-detectable=true
+*.toml    text eol=lf linguist-detectable=true
+*.mod     text eol=lf linguist-detectable=true
+*.sum     text eol=lf linguist-detectable=true
+*.js      text eol=lf linguist-detectable=true
+*.jsx     text eol=lf linguist-detectable=true
+*.ts      text eol=lf linguist-detectable=true
+*.tsx     text eol=lf linguist-detectable=true
+*.css     text eol=lf linguist-detectable=true
+*.scss    text eol=lf linguist-detectable=true
+*.html    text eol=lf linguist-detectable=true
+
+# Force CRLF for Windows batch files
+*.bat     text eol=crlf linguist-detectable=true
+*.cmd     text eol=crlf linguist-detectable=true
+
+# Handle SVG as text (good for diffs)
+*.svg     text linguist-detectable=true
+
+# Mark common binary files to prevent line ending changes and aid diffing
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary
+*.pdf     binary
+*.zip     binary
+*.gz      binary
+*.tar     binary
+*.exe     binary
+*.dll     binary
+*.so      binary
+*.dylib   binary
+*.jar     binary
+*.woff    binary
+*.woff2   binary
+*.eot     binary
+*.ttf     binary
+
+# Indicate generated config files
+/.gitattributes linguist-generated=true
+/.gitignore     linguist-generated=true
+/.editorconfig  linguist-generated=true
