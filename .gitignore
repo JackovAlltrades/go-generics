@@ -37,6 +37,9 @@ go-generics.exe
 !.env.example
 !.env.test
 
+
+# Doppler CLI configuration
+.doppler/
 # OS Specific Files
 # -----------------------------------
 # macOS

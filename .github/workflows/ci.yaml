@@ -1,0 +1,71 @@
+name: Go CI Checks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  checks:
+    name: Lint, Test, Security & Vuln Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+
+      # ---> ADD THIS STEP <---
+      - name: Fetch Secrets from Doppler
+        uses: dopplerhq/cli-action@v7 # Use the official Doppler CLI Action
+        with:
+          # Inject the Doppler Service Token from GitHub Secrets
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          # Optional: Specify project/config if not inferred or different from 'dev'
+          # project: go-generics
+          # config: ci # Example if using a separate CI config in Doppler
+        # This action makes Doppler secrets available as environment variables
+        # for subsequent steps in the job.
+
+      # Linting (Example - Doppler not usually needed here)
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: v1.57
+          args: --verbose
+
+      # Tests & Coverage
+      - name: Run Tests with Race Detector and Coverage
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      # Upload Coverage (Now uses the token fetched by Doppler)
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          # The token is now available as an environment variable ($CODECOV_TOKEN)
+          # The action typically picks it up automatically if the env var is set.
+          # You can be explicit if needed, but usually not required:
+          # token: ${{ env.CODECOV_TOKEN }}
+          files: ./coverage.out
+          fail_ci_if_error: true
+          verbose: true
+
+      # Security Scans (Example - Doppler not usually needed here)
+      - name: Install and Run gosec
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.19.0
+          gosec ./...
+
+      # Vuln Check (Example - Doppler not usually needed here)
+      - name: Install and Run govulncheck
+        run: |
+          go mod download # Ensure modules are present
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Run Go Vet
+        run: go vet ./...
