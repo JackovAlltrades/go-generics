@@ -95,3 +95,5 @@ coverage/
 build/
 dist/
 create-readme.sh
+create-readme.sh
+.required=true
