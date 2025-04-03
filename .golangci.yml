@@ -1,0 +1,72 @@
+# .golangci.yml
+# Configuration for golangci-lint - Baseline for Go 1.24.1 Compatibility
+# Adjusted for v1.64.8 - 'shadow' commented out, deprecated options updated, passthrough removed, exportloopref removed.
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - funlen
+        - gocyclo
+        - gocognit
+  exclude-files:
+    - ".*_test\\.go$"
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-dirs-use-default: true
+
+run:
+  deadline: 5m
+
+output:
+  print-issued-lines: true
+  print-linter-name: true
+  sort-results: true
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  gocognit:
+    min-complexity: 25
+  maligned:
+    suggest-new: true
+  goconst:
+    min-len: 2
+    min-occurrences: 3
+  misspell:
+    locale: US
+  lll:
+    line-length: 120
+  goimports:
+    local-prefixes: github.com/JackovAlltrades/go-generics # Your module path
+  gofumpt:
+    extra-rules: true
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+
+linters:
+  disable: []
+
+  # Enable specific linters beyond the default set
+  enable:
+    - gocognit      # Cognitive complexity
+    - gocyclo       # Cyclomatic complexity
+    - gosec         # Security checks
+    # - shadow        # <<< COMMENTED OUT - Caused 'unknown linter' error with v1.64.8
+    - gofumpt       # Stricter formatter
+    - goimports     # Checks imports formatting + adds missing/removes unused
+    - misspell      # Checks for common spelling mistakes
+    - revive        # Replacement for golint, configurable checks
+    # - exportloopref # <<< REMOVED - Deprecated since Go 1.22 / golangci-lint v1.60.2
+    - unconvert     # Checks for unnecessary type conversions
+    - unparam       # Checks for unused function parameters
+    - unused        # Checks for unused constants, variables, functions, types, labels
+    - prealloc      # Finds slice declarations that could potentially be preallocated.
+    - bodyclose     # checks whether HTTP response body is closed successfully
+    - durationcheck # checks for two durations being multiplied
+    - errcheck      # checks that exported functions check errors
+    - errorlint     # checks for proper error wrapping (`fmt.Errorf`, `%w`)
+    - wastedassign  # finds wasted assignments
+    # Add more as needed based on project requirements
