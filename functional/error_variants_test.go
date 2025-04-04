@@ -12,8 +12,10 @@ import (
 	"github.com/JackovAlltrades/go-generics/functional"
 )
 
-var errTest = errors.New("test error condition met")
-var errRate = 100
+var (
+	errTest = errors.New("test error condition met")
+	errRate = 100
+)
 
 // --- Test MapErr ---
 func TestMapErr(t *testing.T) {
@@ -289,6 +291,7 @@ func reducerWithError(acc, current int) (int, error) {
 	}
 	return acc + current, nil
 }
+
 func BenchmarkMapErr_NoError_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	b.ResetTimer()
@@ -300,6 +303,7 @@ func BenchmarkMapErr_NoError_N1000(b *testing.B) {
 	_ = res
 	_ = err
 }
+
 func BenchmarkMap_Baseline_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	mapper := func(n int) string { return strconv.Itoa(n) }
@@ -310,6 +314,7 @@ func BenchmarkMap_Baseline_N1000(b *testing.B) {
 	}
 	_ = res
 }
+
 func BenchmarkMapLoop_Baseline_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	b.ResetTimer()
@@ -323,6 +328,7 @@ func BenchmarkMapLoop_Baseline_N1000(b *testing.B) {
 	}
 	_ = res
 }
+
 func BenchmarkMapErr_WithError_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	b.ResetTimer()
@@ -334,6 +340,7 @@ func BenchmarkMapErr_WithError_N1000(b *testing.B) {
 	_ = res
 	_ = err
 }
+
 func BenchmarkMapLoop_WithError_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	b.ResetTimer()
@@ -357,6 +364,7 @@ func BenchmarkMapLoop_WithError_N1000(b *testing.B) {
 	_ = res
 	_ = err
 }
+
 func BenchmarkFilterErr_NoError_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	b.ResetTimer()
@@ -368,6 +376,7 @@ func BenchmarkFilterErr_NoError_N1000(b *testing.B) {
 	_ = res
 	_ = err
 }
+
 func BenchmarkFilter_Baseline_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	predicate := func(n int) bool { return n%2 == 0 }
@@ -378,6 +387,7 @@ func BenchmarkFilter_Baseline_N1000(b *testing.B) {
 	}
 	_ = res
 }
+
 func BenchmarkFilterLoop_Baseline_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	predicate := func(n int) bool { return n%2 == 0 }
@@ -394,6 +404,7 @@ func BenchmarkFilterLoop_Baseline_N1000(b *testing.B) {
 	}
 	_ = res
 }
+
 func BenchmarkFilterErr_WithError_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	b.ResetTimer()
@@ -405,6 +416,7 @@ func BenchmarkFilterErr_WithError_N1000(b *testing.B) {
 	_ = res
 	_ = err
 }
+
 func BenchmarkFilterLoop_WithError_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	b.ResetTimer()
@@ -430,6 +442,7 @@ func BenchmarkFilterLoop_WithError_N1000(b *testing.B) {
 	_ = res
 	_ = err
 }
+
 func BenchmarkReduceErr_NoError_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	initial := 0
@@ -442,6 +455,7 @@ func BenchmarkReduceErr_NoError_N1000(b *testing.B) {
 	_ = res
 	_ = err
 }
+
 func BenchmarkReduce_Baseline_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	initial := 0
@@ -453,6 +467,7 @@ func BenchmarkReduce_Baseline_N1000(b *testing.B) {
 	}
 	_ = res
 }
+
 func BenchmarkReduceLoop_Baseline_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	initial := 0
@@ -467,6 +482,7 @@ func BenchmarkReduceLoop_Baseline_N1000(b *testing.B) {
 	}
 	_ = res
 }
+
 func BenchmarkReduceErr_WithError_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	initial := 0
@@ -479,6 +495,7 @@ func BenchmarkReduceErr_WithError_N1000(b *testing.B) {
 	_ = res
 	_ = err
 }
+
 func BenchmarkReduceLoop_WithError_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	initial := 0
