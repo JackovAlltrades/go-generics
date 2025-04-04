@@ -209,3 +209,62 @@ func ExampleMap() {
 	// Names: [Alice Bob]
 	// Mapped nil: true
 }
+
+// --- Benchmarks ---
+
+// Helper function to generate a slice of ints for benchmarking
+func generateIntSlice(size int) []int {
+	slice := make([]int, size)
+	for i := 0; i < size; i++ {
+		slice[i] = i
+	}
+	return slice
+}
+
+// mapper function for benchmarks
+var intToStringMapper = func(i int) string {
+	return strconv.Itoa(i * 2) // Example transformation
+}
+
+// Benchmark for functional.Map
+func benchmarkMapGeneric(size int, b *testing.B) {
+	inputSlice := generateIntSlice(size)
+	b.ResetTimer() // Start timing after setup
+	for i := 0; i < b.N; i++ {
+		// Assign to a local variable to prevent compiler optimization
+		// from removing the function call entirely.
+		_ = functional.Map(inputSlice, intToStringMapper)
+	}
+}
+
+// Benchmark for traditional for loop map
+func benchmarkMapLoop(size int, b *testing.B) {
+	inputSlice := generateIntSlice(size)
+	mapper := intToStringMapper // Use the same mapper
+	b.ResetTimer()              // Start timing after setup
+	for i := 0; i < b.N; i++ {
+		// Manual loop implementation
+		result := make([]string, len(inputSlice)) // Preallocate slice
+		for j, val := range inputSlice {
+			result[j] = mapper(val)
+		}
+		// Assign to prevent optimization
+		_ = result
+	}
+}
+
+// --- Run Benchmarks for different sizes ---
+
+func BenchmarkMap_Generic_10(b *testing.B) { benchmarkMapGeneric(10, b) }
+func BenchmarkMap_Loop_10(b *testing.B)    { benchmarkMapLoop(10, b) }
+
+func BenchmarkMap_Generic_100(b *testing.B) { benchmarkMapGeneric(100, b) }
+func BenchmarkMap_Loop_100(b *testing.B)    { benchmarkMapLoop(100, b) }
+
+func BenchmarkMap_Generic_1000(b *testing.B) { benchmarkMapGeneric(1000, b) }
+func BenchmarkMap_Loop_1000(b *testing.B)    { benchmarkMapLoop(1000, b) }
+
+func BenchmarkMap_Generic_10000(b *testing.B) { benchmarkMapGeneric(10000, b) }
+func BenchmarkMap_Loop_10000(b *testing.B)    { benchmarkMapLoop(10000, b) }
+
+// Add larger sizes if needed, e.g., 100k, 1M

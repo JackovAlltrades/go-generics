@@ -2,20 +2,19 @@ package functional_test
 
 import (
 	"fmt"
-	"reflect" // For DeepEqual
+	"reflect"
+	"slices" // For slices.Clone (Go 1.21+)
 	"testing"
 
 	"github.com/JackovAlltrades/go-generics/functional"
 )
 
-// Assume person struct is available if needed for testing
-// type person struct { Name string; Age int }
-
+// --- Test Reverse ---
 func TestReverse(t *testing.T) {
 	testCases := []struct {
 		name  string
-		input any // []T
-		want  any // []T
+		input any // Slice type T
+		want  any // Expected slice of type T after reversing
 	}{
 		{
 			name:  "ReverseInts",
@@ -24,8 +23,8 @@ func TestReverse(t *testing.T) {
 		},
 		{
 			name:  "ReverseStrings",
-			input: []string{"a", "b", "c"},
-			want:  []string{"c", "b", "a"},
+			input: []string{"a", "b", "c", "d"},
+			want:  []string{"d", "c", "b", "a"},
 		},
 		{
 			name:  "ReverseSingleElement",
@@ -34,101 +33,186 @@ func TestReverse(t *testing.T) {
 		},
 		{
 			name:  "ReverseEmpty",
-			input: []string{},
-			want:  []string{}, // Expect empty slice
+			input: []int{},
+			want:  []int{},
 		},
 		{
 			name:  "ReverseNil",
 			input: ([]int)(nil),
-			want:  []int{}, // Expect empty slice (Guideline #3)
+			want:  ([]int)(nil), // Reversing nil should probably result in nil
 		},
-		// Add struct test if needed
-		// {
-		// 	name: "ReverseStructs",
-		// 	input: []person{{Name: "A", Age: 1}, {Name: "B", Age: 2}},
-		// 	want:  []person{{Name: "B", Age: 2}, {Name: "A", Age: 1}},
-		// },
+		// A test case with an even number of elements
+		{
+			name:  "ReverseEvenLength",
+			input: []float64{1.1, 2.2, 3.3, 4.4},
+			want:  []float64{4.4, 3.3, 2.2, 1.1},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var got any
+			// Crucial: Reverse modifies in-place. We need a copy for the test.
+			var inputCopy any
 
-			// Use type switch to call generic function correctly
-			switch in := tc.input.(type) {
+			// Make a copy based on the type
+			switch v := tc.input.(type) {
 			case []int:
-				got = functional.Reverse[int](in)
+				inputCopy = slices.Clone(v) // Use slices.Clone (Go 1.21+)
 			case []string:
-				got = functional.Reverse[string](in)
-			case []person: // If struct tests are added
-				got = functional.Reverse[person](in)
-			case nil: // Handle nil outer slice
-				// Infer type from 'want' slice
-				switch tc.want.(type) {
-				case []string:
-					got = functional.Reverse[string](nil)
-				case []int:
-					got = functional.Reverse[int](nil)
-				// Add other types as needed
-				default:
-					t.Fatalf("Unhandled nil input type case for want type %T", tc.want)
-				}
+				inputCopy = slices.Clone(v)
+			case []float64:
+				inputCopy = slices.Clone(v)
+			case nil:
+				inputCopy = nil // Copy of nil is nil
 			default:
-				t.Fatalf("Unhandled input type: %T", tc.input)
+				// Handle empty slice case which might be typed differently
+				rv := reflect.ValueOf(tc.input)
+				if rv.Kind() == reflect.Slice && rv.Len() == 0 {
+					// Create an empty slice of the correct type
+					inputCopy = reflect.MakeSlice(rv.Type(), 0, 0).Interface()
+				} else {
+					t.Fatalf("Unhandled type for copying in test setup: %T", tc.input)
+				}
 			}
 
-			// Compare using DeepEqual
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("Reverse() = %#v, want %#v", got, tc.want)
+			// Call Reverse on the copy
+			switch c := inputCopy.(type) {
+			case []int:
+				functional.Reverse(c)
+			case []string:
+				functional.Reverse(c)
+			case []float64:
+				functional.Reverse(c)
+			case nil:
+				functional.Reverse[any](nil) // Call on nil (with explicit type if needed by impl)
+			default:
+				// Check again if it was an empty slice
+				rv := reflect.ValueOf(inputCopy)
+				if !(rv.Kind() == reflect.Slice && rv.Len() == 0) {
+					// If it's not nil and not an empty slice we explicitly handled, error
+					t.Fatalf("Unhandled type for calling Reverse in test setup: %T", inputCopy)
+				}
+				// If it was an empty slice, calling Reverse on it is fine, no specific call needed.
 			}
 
-			// Also verify the original input was not modified (for non-nil cases)
-			// This requires comparing the ORIGINAL input slice (before the Reverse call)
-			// with its state after the call. The table test setup makes this tricky.
-			// A simpler check outside the table loop, or separate tests for mutation,
-			// might be better if this guarantee is critical to enforce via tests.
-			// For now, we rely on the implementation clearly showing no modification.
-			// Example explicit check (less ideal within table test):
-			// if tc.input != nil {
-			// 	originalInputCopy := make([]T, len(tc.input.([]T))) // Requires type assertion again
-			// 	copy(originalInputCopy, tc.input.([]T))
-			// 	// ... call functional.Reverse ...
-			// 	if !reflect.DeepEqual(originalInputCopy, tc.input.([]T)) {
-			// 		 t.Errorf("Input slice was modified!")
-			// 	}
-			// }
+			// Now compare the modified copy (inputCopy) with the expected want value
+			if !reflect.DeepEqual(inputCopy, tc.want) {
+				// Special handling for comparing nil vs empty slice potentially
+
+				// Consider nil == empty slice for reversal? Usually no. nil reversed is nil. Empty reversed is empty.
+				// DeepEqual handles nil vs nil and empty vs empty correctly.
+				// So a direct DeepEqual should be sufficient.
+
+				t.Errorf("Reverse() resulted in %#v, want %#v", inputCopy, tc.want)
+			}
 		})
 	}
 }
 
-// --- Go Examples ---
-
+// --- Reverse Examples ---
 func ExampleReverse() {
-	nums := []int{10, 20, 30, 40}
-	reversedNums := functional.Reverse(nums)
-	fmt.Printf("Original: %v, Reversed: %v\n", nums, reversedNums)
+	nums := []int{10, 20, 30, 40, 50}
+	fmt.Println("Original nums:", nums)
+	functional.Reverse(nums) // Modifies in-place
+	fmt.Println("Reversed nums:", nums)
 
-	strs := []string{"one", "two", "three"}
-	reversedStrs := functional.Reverse(strs)
-	fmt.Printf("Original: %v, Reversed: %v\n", strs, reversedStrs)
+	letters := []string{"x", "y", "z"}
+	fmt.Println("Original letters:", letters)
+	functional.Reverse(letters)
+	fmt.Println("Reversed letters:", letters)
 
-	empty := []int{}
-	reversedEmpty := functional.Reverse(empty)
-	fmt.Printf("Original: %v, Reversed: %#v\n", empty, reversedEmpty) // Show type
+	empty := []float32{}
+	fmt.Println("Original empty:", empty)
+	functional.Reverse(empty) // Should do nothing
+	fmt.Println("Reversed empty:", empty)
 
-	var nilSlice []string = nil
-	reversedNil := functional.Reverse(nilSlice)
-	fmt.Printf("Original: %v, Reversed: %#v\n", nilSlice, reversedNil) // Show type
-
-	// Note: Verify original slices are unchanged
-	fmt.Printf("Original nums after reverse: %v\n", nums)
-	fmt.Printf("Original strs after reverse: %v\n", strs)
+	var nilSlice []int = nil
+	fmt.Printf("Original nil: %#v\n", nilSlice)
+	functional.Reverse(nilSlice) // Should do nothing (no panic)
+	fmt.Printf("Reversed nil: %#v\n", nilSlice)
 
 	// Output:
-	// Original: [10 20 30 40], Reversed: [40 30 20 10]
-	// Original: [one two three], Reversed: [three two one]
-	// Original: [], Reversed: []int{}
-	// Original: [], Reversed: []string{}
-	// Original nums after reverse: [10 20 30 40]
-	// Original strs after reverse: [one two three]
+	// Original nums: [10 20 30 40 50]
+	// Reversed nums: [50 40 30 20 10]
+	// Original letters: [x y z]
+	// Reversed letters: [z y x]
+	// Original empty: []
+	// Reversed empty: []
+	// Original nil: []int(nil)
+	// Reversed nil: []int(nil)
 }
+
+// --- Benchmarks ---
+
+// Helper to generate slice data
+func generateSliceForReverse(size int) []int {
+	data := make([]int, size)
+	for i := 0; i < size; i++ {
+		data[i] = i
+	}
+	return data
+}
+
+// NOTE: Benchmarking in-place operations requires care.
+// We must ensure each benchmark iteration operates on fresh or reset data,
+// otherwise, we're just benchmarking reversing an already reversed slice repeatedly.
+// The easiest way is often to CLONE the data inside the benchmark loop,
+// although this adds the overhead of cloning to the measurement.
+// A more complex alternative is to reverse it back manually after each call,
+// but that adds its own overhead. Cloning is simpler to implement correctly here.
+
+// Benchmark runner for generic Reverse (with cloning inside)
+func benchmarkReverseGeneric(b *testing.B, data []int) {
+	if data == nil {
+		b.Skip("Skipping nil data")
+		return
+	}
+	b.ResetTimer() // Start timing before the loop
+
+	for i := 0; i < b.N; i++ {
+		// Clone ensures we reverse original data each time
+		dataCopy := slices.Clone(data)
+		functional.Reverse(dataCopy) // Operate on the copy
+	}
+}
+
+// Benchmark runner for loop-based Reverse (with cloning inside)
+func benchmarkReverseLoop(b *testing.B, data []int) {
+	if data == nil {
+		b.Skip("Skipping nil data")
+		return
+	}
+	b.ResetTimer() // Start timing before the loop
+
+	for i := 0; i < b.N; i++ {
+		// Clone ensures we reverse original data each time
+		dataCopy := slices.Clone(data)
+		// Manual loop implementation (in-place)
+		l := len(dataCopy)
+		for i := 0; i < l/2; i++ {
+			dataCopy[i], dataCopy[l-1-i] = dataCopy[l-1-i], dataCopy[i]
+		}
+	}
+}
+
+// Define benchmark scenarios
+var (
+	reverseDataN10    = generateSliceForReverse(10)
+	reverseDataN100   = generateSliceForReverse(100)
+	reverseDataN1000  = generateSliceForReverse(1000)
+	reverseDataN10000 = generateSliceForReverse(10000)
+)
+
+// --- Run Benchmarks ---
+
+func BenchmarkReverse_Generic_N10(b *testing.B) { benchmarkReverseGeneric(b, reverseDataN10) }
+func BenchmarkReverse_Loop_N10(b *testing.B)    { benchmarkReverseLoop(b, reverseDataN10) }
+
+func BenchmarkReverse_Generic_N100(b *testing.B) { benchmarkReverseGeneric(b, reverseDataN100) }
+func BenchmarkReverse_Loop_N100(b *testing.B)    { benchmarkReverseLoop(b, reverseDataN100) }
+
+func BenchmarkReverse_Generic_N1000(b *testing.B) { benchmarkReverseGeneric(b, reverseDataN1000) }
+func BenchmarkReverse_Loop_N1000(b *testing.B)    { benchmarkReverseLoop(b, reverseDataN1000) }
+
+func BenchmarkReverse_Generic_N10000(b *testing.B) { benchmarkReverseGeneric(b, reverseDataN10000) }
+func BenchmarkReverse_Loop_N10000(b *testing.B)    { benchmarkReverseLoop(b, reverseDataN10000) }

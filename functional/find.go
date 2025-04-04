@@ -1,8 +1,8 @@
-// Package functional provides generic functions for common functional
-// programming patterns like Map, Filter, Reduce, and other slice/map utilities.
 package functional
 
 // Find searches for an element in a slice that satisfies the predicate function.
+// It returns a pointer to the *actual element within the slice's backing array*
+// if found, allowing modification of the original slice element via the pointer.
 //
 // Type Parameters:
 //
@@ -15,17 +15,15 @@ package functional
 //
 // Returns:
 //
-//	A pointer to the first matching element and true if found.
-//	Nil and false if no element matches or if input is nil or empty.
+//	*T: A pointer to the first matching element in the original slice, or nil if not found.
+//	bool: true if an element was found, false if the slice is nil or empty or no element matches.
 func Find[T any](input []T, predicate func(T) bool) (*T, bool) {
-	if len(input) == 0 {
-		return nil, false
-	}
-
-	for _, item := range input {
-		if predicate(item) {
-			return &item, true
+	// Use standard index loop to be absolutely sure we get pointer to slice element
+	for i := 0; i < len(input); i++ {
+		if predicate(input[i]) {
+			return &input[i], true // Return address of slice element
 		}
 	}
+	// If loop completes or slice is empty/nil, not found
 	return nil, false
 }

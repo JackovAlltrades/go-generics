@@ -1,6 +1,6 @@
 package functional
 
-// Reverse returns a new slice with the elements of the input slice in reverse order.
+// ReversedCopy returns a new slice with the elements of the input slice in reverse order.
 //
 // Type Parameters:
 //
@@ -8,7 +8,7 @@ package functional
 //
 // Parameters:
 //
-//	input: The slice to reverse.
+//	slice: The input slice to create a reversed copy of.
 //
 // Returns:
 //
@@ -16,18 +16,18 @@ package functional
 //	     Returns an empty slice ([]T{}) if the input slice is nil or empty.
 //
 // The original input slice is never modified.
-func Reverse[T any](input []T) []T {
-	length := len(input)
-	// Handle nil or empty input slice (Guideline #3, #5)
+func ReversedCopy[T any](slice []T) []T { // Renamed from Reverse
+	length := len(slice)
+	// Handle nil or empty input slice
 	if length == 0 {
 		return []T{} // Return empty slice
 	}
 
-	// Preallocate result slice with the correct length and capacity (Guideline #5)
+	// Preallocate result slice with the correct length and capacity
 	result := make([]T, length)
 
 	// Populate the result slice in reverse order
-	for i, v := range input {
+	for i, v := range slice {
 		// Place element v (from input index i) into the corresponding reverse position
 		// in the result slice (index length - 1 - i).
 		result[length-1-i] = v
@@ -36,7 +36,7 @@ func Reverse[T any](input []T) []T {
 	return result
 }
 
-// ReverseInPlace reverses the elements of the input slice directly (in-place).
+// Reverse reverses the elements of the input slice directly (in-place).
 //
 // Type Parameters:
 //
@@ -44,15 +44,15 @@ func Reverse[T any](input []T) []T {
 //
 // Parameters:
 //
-//	input: The slice to reverse in-place. If the slice is nil or has
+//	slice: The slice to reverse in-place. If the slice is nil or has
 //	       fewer than 2 elements, the function does nothing.
 //
 // Returns:
 //
 //	None. The input slice itself is modified.
-func ReverseInPlace[T any](input []T) {
-	length := len(input)
-	// No action needed for nil, empty, or single-element slices (Guideline #5)
+func Reverse[T any](slice []T) { // Renamed from ReverseInPlace
+	length := len(slice)
+	// No action needed for nil, empty, or single-element slices
 	if length < 2 {
 		return
 	}
@@ -63,7 +63,7 @@ func ReverseInPlace[T any](input []T) {
 		// Calculate the index of the corresponding element from the end.
 		j := length - 1 - i
 		// Perform the swap using parallel assignment.
-		input[i], input[j] = input[j], input[i]
+		slice[i], slice[j] = slice[j], slice[i]
 	}
 	// No return value needed as the slice is modified directly.
 }

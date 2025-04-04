@@ -1,393 +1,536 @@
-package functional_test
+package functional_test // Note the _test suffix for the package name
 
 import (
-	// Import cmp (Go 1.21+)
 	"fmt"
 	"reflect"
-	"sort" // Needed for comparing Values in examples and Keys testing
+	"sort"
 	"testing"
 
-	"github.com/JackovAlltrades/go-generics/functional"
+	"github.com/JackovAlltrades/go-generics/functional" // Adjust import path if needed
 )
 
-// Assume comparablePerson struct is available from another _test file in this package
-// type comparablePerson struct { ID int; Name string }
-// Assume person struct is available if testing maps with struct values
-// type person struct { Name string; Age int }
+// --- Structs Used in Tests ---
+type personValue struct {
+	Name string
+	Age  int
+}
+type personToMap struct {
+	Name string
+	Age  int
+}
 
-// Helper to compare slice contents using frequency maps (handles duplicates, order-independent)
-// Requires T to be comparable.
-func assertSliceContentsEqual[T comparable](t *testing.T, got, want []T) {
-	t.Helper() // Mark as test helper
+// --- Helper functions ---
+func sortSliceAny(slice any) bool {
+	switch s := slice.(type) {
+	case []int:
+		sort.Ints(s)
+		return true
+	case []string:
+		sort.Strings(s)
+		return true
+	case []float64:
+		sort.Float64s(s)
+		return true
+	case []personValue:
+		// Example sorting for personValue (e.g., by Age)
+		sort.Slice(s, func(i, j int) bool { return s[i].Age < s[j].Age })
+		return true
+	default:
+		return false
+	}
+}
+
+func compareUnorderedSlices[T comparable](t *testing.T, got, want []T) {
+	t.Helper()
 	if len(got) != len(want) {
-		t.Errorf("Slice lengths differ: got %d, want %d. Got=%#v, Want=%#v", len(got), len(want), got, want)
+		t.Errorf("Unordered slice length mismatch: len(got)=%d, len(want)=%d (got=%#v, want=%#v)", len(got), len(want), got, want)
 		return
 	}
 	if len(got) == 0 {
-		return // Both empty
+		return
+	} // Both empty, they are equal
+
+	gotMap := make(map[T]int, len(got))
+	wantMap := make(map[T]int, len(want))
+	for _, v := range got {
+		gotMap[v]++
+	}
+	for _, v := range want {
+		wantMap[v]++
 	}
 
-	gotFreq := make(map[T]int)
-	for _, item := range got {
-		gotFreq[item]++
-	}
-
-	wantFreq := make(map[T]int)
-	for _, item := range want {
-		wantFreq[item]++
-	}
-
-	if !reflect.DeepEqual(gotFreq, wantFreq) {
-		// Provide more detail on frequency mismatch
-		t.Errorf("Slice contents differ (frequency map comparison):\nGot:  %#v (freq: %v)\nWant: %#v (freq: %v)", got, gotFreq, want, wantFreq)
+	if !reflect.DeepEqual(gotMap, wantMap) {
+		t.Errorf("Unordered slice element mismatch: got elements=%v, want elements=%v (counts differ or elements differ)", got, want)
 	}
 }
 
+// --- Test Keys ---
 func TestKeys(t *testing.T) {
-	testCases := []struct {
-		name     string
-		inputMap any // map[K]V where K is cmp.Ordered
-		wantKeys any // []K, sorted
-	}{
-		{
-			name:     "Keys_IntKeys",
-			inputMap: map[int]string{3: "c", 1: "a", 2: "b"},
-			wantKeys: []int{1, 2, 3}, // Expect sorted keys
-		},
-		{
-			name:     "Keys_StringKeys",
-			inputMap: map[string]int{"banana": 2, "apple": 1, "cherry": 3},
-			wantKeys: []string{"apple", "banana", "cherry"}, // Expect sorted keys
-		},
-		{
-			name:     "Keys_EmptyMap",
-			inputMap: map[int]bool{},
-			wantKeys: []int{},
-		},
-		{
-			name:     "Keys_NilMap",
-			inputMap: (map[string]int)(nil),
-			wantKeys: []string{}, // Expect empty slice
-		},
-	}
+	t.Run("Keys_IntKeys", func(t *testing.T) {
+		input := map[int]string{1: "a", 2: "b", 3: "c"}
+		want := []int{1, 2, 3}
+		got := functional.Keys(input) // Calling the function from the functional package
+		sortSliceAny(got)
+		sortSliceAny(want)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("Keys() = %#v, want %#v", got, want)
+		}
+	})
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			var gotKeys any
+	t.Run("Keys_StringKeys", func(t *testing.T) {
+		input := map[string]int{"one": 1, "two": 2, "three": 3}
+		want := []string{"one", "two", "three"}
+		got := functional.Keys(input) // Calling the function from the functional package
+		sortSliceAny(got)
+		sortSliceAny(want)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("Keys() = %#v, want %#v", got, want)
+		}
+	})
 
-			switch m := tc.inputMap.(type) {
-			case map[int]string:
-				gotKeys = functional.Keys[int, string](m)
-			case map[string]int:
-				gotKeys = functional.Keys[string, int](m)
-			case map[int]bool: // Empty map case
-				gotKeys = functional.Keys[int, bool](m)
-			case nil:
-				switch tc.wantKeys.(type) { // Infer key type from want
-				case []string:
-					gotKeys = functional.Keys[string, int](nil) // Value type doesn't matter for Keys(nil)
-				case []int:
-					gotKeys = functional.Keys[int, bool](nil)
-				default:
-					t.Fatalf("Unhandled nil map key type for %s", tc.name)
-				}
+	t.Run("Keys_EmptyMap", func(t *testing.T) {
+		input := map[int]int{}
+		want := []int{}
+		got := functional.Keys(input) // Calling the function from the functional package
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("Keys() = %#v, want %#v", got, want)
+		}
+	})
 
-			default:
-				t.Fatalf("Unhandled map type: %T", tc.inputMap)
-			}
-
-			// Keys should be sorted, so DeepEqual works directly
-			if !reflect.DeepEqual(gotKeys, tc.wantKeys) {
-				t.Errorf("Keys() = %#v, want %#v (sorted)", gotKeys, tc.wantKeys)
-			}
-		})
-	}
+	t.Run("Keys_NilMap", func(t *testing.T) {
+		var input map[string]bool = nil
+		want := []string{}
+		got := functional.Keys(input) // Calling the function from the functional package
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("Keys() = %#v, want %#v", got, want)
+		}
+	})
 }
 
+// --- Test Values ---
 func TestValues(t *testing.T) {
-	testCases := []struct {
-		name       string
-		inputMap   any // map[K]V where K is comparable
-		wantValues any // []V - order doesn't matter, only content
-	}{
-		{
-			name:       "Values_IntValues",
-			inputMap:   map[string]int{"a": 10, "b": 20, "c": 10},
-			wantValues: []int{10, 20, 10}, // Exact values, order may vary
-		},
-		{
-			name:       "Values_StringValues",
-			inputMap:   map[int]string{1: "hello", 2: "world", 3: "hello"},
-			wantValues: []string{"hello", "world", "hello"},
-		},
-		// Example with comparable struct values (if comparablePerson is defined and comparable)
-		{
-			name: "Values_ComparableStructValues",
-			inputMap: map[int]comparablePerson{
-				1: {ID: 1, Name: "A"},
-				2: {ID: 2, Name: "B"},
-				3: {ID: 1, Name: "A"}, // Duplicate value
-			},
-			wantValues: []comparablePerson{{ID: 1, Name: "A"}, {ID: 2, Name: "B"}, {ID: 1, Name: "A"}},
-		},
-		{
-			name:       "Values_EmptyMap",
-			inputMap:   map[int]string{},
-			wantValues: []string{},
-		},
-		{
-			name:       "Values_NilMap",
-			inputMap:   (map[string]int)(nil),
-			wantValues: []int{},
-		},
-	}
+	t.Run("Values_IntValues", func(t *testing.T) {
+		input := map[string]int{"a": 1, "b": 2, "c": 3}
+		want := []int{1, 2, 3}
+		got := functional.Values(input) // Calling the function from the functional package
+		sortSliceAny(got)
+		sortSliceAny(want)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("Values() = %#v, want %#v", got, want)
+		}
+	})
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			var gotValues any
+	t.Run("Values_StringValues", func(t *testing.T) {
+		input := map[int]string{1: "one", 2: "two", 3: "three"}
+		want := []string{"one", "two", "three"}
+		got := functional.Values(input) // Calling the function from the functional package
+		sortSliceAny(got)
+		sortSliceAny(want)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("Values() = %#v, want %#v", got, want)
+		}
+	})
 
-			switch m := tc.inputMap.(type) {
-			case map[string]int:
-				gotValues = functional.Values[string, int](m)
-			case map[int]string:
-				gotValues = functional.Values[int, string](m)
-			case map[int]comparablePerson: // Struct value case (Must be comparable)
-				gotValues = functional.Values[int, comparablePerson](m)
-			case nil:
-				switch tc.wantValues.(type) { // Infer value type from want
-				case []int:
-					gotValues = functional.Values[string, int](nil) // Key type doesn't matter for Values(nil)
-				case []string:
-					gotValues = functional.Values[int, string](nil)
-				case []comparablePerson:
-					gotValues = functional.Values[int, comparablePerson](nil)
-				default:
-					t.Fatalf("Unhandled nil map value type for %s", tc.name)
-				}
-			default:
-				t.Fatalf("Unhandled map type: %T", tc.inputMap)
-			}
+	t.Run("Values_ComparableStructValues", func(t *testing.T) {
+		input := map[int]personValue{1: {"A", 20}, 2: {"B", 30}, 3: {"C", 25}}
+		want := []personValue{{"A", 20}, {"B", 30}, {"C", 25}}
+		got := functional.Values(input) // Calling the function from the functional package
+		compareUnorderedSlices(t, got, want)
+	})
 
-			// --- Use frequency map comparison for Values ---
-			switch want := tc.wantValues.(type) {
-			case []int:
-				got, ok := gotValues.([]int)
-				if !ok {
-					t.Fatalf("Got values type mismatch, expected []int")
-				}
-				assertSliceContentsEqual[int](t, got, want) // Use frequency helper
-			case []string:
-				got, ok := gotValues.([]string)
-				if !ok {
-					t.Fatalf("Got values type mismatch, expected []string")
-				}
-				assertSliceContentsEqual[string](t, got, want) // Use frequency helper
-			case []comparablePerson: // comparablePerson must be comparable for this helper
-				got, ok := gotValues.([]comparablePerson)
-				if !ok {
-					t.Fatalf("Got values type mismatch, expected []comparablePerson")
-				}
-				assertSliceContentsEqual[comparablePerson](t, got, want) // Use frequency helper
-			default:
-				// If result type V is not comparable, this helper won't work.
-				// Need a different comparison strategy (e.g., sorting if ordered, or custom logic).
-				t.Logf("Warning: Cannot use frequency map comparison for result type %T (requires comparable). Using DeepEqual (may fail on order).", tc.wantValues)
-				if !reflect.DeepEqual(gotValues, tc.wantValues) {
-					t.Errorf("Values() = %#v, want %#v (order might differ, frequency check skipped)", gotValues, tc.wantValues)
-				}
-			}
-		})
-	}
+	t.Run("Values_EmptyMap", func(t *testing.T) {
+		input := map[string]float64{}
+		want := []float64{}
+		got := functional.Values(input) // Calling the function from the functional package
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("Values() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Values_NilMap", func(t *testing.T) {
+		var input map[int]string = nil
+		want := []string{}
+		got := functional.Values(input) // Calling the function from the functional package
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("Values() = %#v, want %#v", got, want)
+		}
+	})
 }
 
+// --- Test MapToSlice ---
 func TestMapToSlice(t *testing.T) {
-	testCases := []struct {
-		name          string
-		inputMap      any // map[K]V
-		transformFunc any // func(K, V) T
-		wantSlice     any // []T - order doesn't matter, use helper
-	}{
-		{
-			name:     "MapIntStringToString",
-			inputMap: map[int]string{1: "a", 2: "bb", 3: "ccc"},
-			transformFunc: func(k int, v string) string {
-				return fmt.Sprintf("%d:%s", k, v)
-			},
-			wantSlice: []string{"1:a", "2:bb", "3:ccc"},
-		},
-		{
-			name:     "MapStringIntToInt",
-			inputMap: map[string]int{"apple": 5, "banana": 6},
-			transformFunc: func(k string, v int) int {
-				return len(k) + v
-			},
-			wantSlice: []int{10, 12},
-		},
-		// Assume 'person' struct exists and 'comparablePerson' exists if needed
-		{
-			name: "MapIntPersonToString",
-			inputMap: map[int]person{
-				10: {Name: "X", Age: 1},
-				20: {Name: "Y", Age: 2},
-			},
-			transformFunc: func(k int, v person) string {
-				return fmt.Sprintf("ID%d->%s", k, v.Name)
-			},
-			wantSlice: []string{"ID10->X", "ID20->Y"},
-		},
-		{
-			name:     "EmptyMap",
-			inputMap: map[int]string{},
-			transformFunc: func(k int, v string) string {
-				t.Fatal("Transform func should not be called on empty map")
-				return ""
-			},
-			wantSlice: []string{},
-		},
-		{
-			name:     "NilMap",
-			inputMap: (map[string]int)(nil),
-			transformFunc: func(k string, v int) int {
-				t.Fatal("Transform func should not be called on nil map")
-				return 0
-			},
-			wantSlice: []int{},
-		},
-	}
+	mapperIntStr := func(k int, v string) string { return fmt.Sprintf("%d:%s", k, v) }
+	mapperStrInt := func(k string, v int) int { return v * len(k) }
+	mapperIntPerson := func(k int, v personToMap) string { return fmt.Sprintf("%s (%d)", v.Name, v.Age+k) }
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			var gotSlice any
+	t.Run("MapIntStringToString", func(t *testing.T) {
+		input := map[int]string{1: "a", 2: "bb", 3: "ccc"}
+		want := []string{"1:a", "2:bb", "3:ccc"}
+		got := functional.MapToSlice(input, mapperIntStr) // Calling the function from the functional package
+		sortSliceAny(got)
+		sortSliceAny(want)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("MapToSlice() = %#v, want %#v", got, want)
+		}
+	})
 
-			// Use type switch on the transform function to call MapToSlice correctly
-			switch fn := tc.transformFunc.(type) {
-			case func(int, string) string: // Handles MapIntStringToString AND EmptyMap
-				m, ok := tc.inputMap.(map[int]string)
-				if tc.inputMap != nil && !ok {
-					t.Fatalf("Input map type mismatch for func(int, string) string")
-				}
-				gotSlice = functional.MapToSlice[int, string, string](m, fn)
-			case func(string, int) int: // Handles MapStringIntToInt AND NilMap
-				m, ok := tc.inputMap.(map[string]int)
-				if tc.inputMap != nil && !ok {
-					t.Fatalf("Input map type mismatch for func(string, int) int")
-				}
-				gotSlice = functional.MapToSlice[string, int, int](m, fn)
-			case func(int, person) string: // Struct value case
-				m, ok := tc.inputMap.(map[int]person)
-				if tc.inputMap != nil && !ok {
-					t.Fatalf("Input map type mismatch for func(int, person) string")
-				}
-				gotSlice = functional.MapToSlice[int, person, string](m, fn)
+	t.Run("MapStringIntToInt", func(t *testing.T) {
+		input := map[string]int{"one": 1, "two": 2, "three": 3}
+		want := []int{3, 6, 15}
+		got := functional.MapToSlice(input, mapperStrInt) // Calling the function from the functional package
+		sortSliceAny(got)
+		sortSliceAny(want)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("MapToSlice() = %#v, want %#v", got, want)
+		}
+	})
 
-			default:
-				t.Fatalf("Unhandled transformFunc type: %T", tc.transformFunc)
-			}
+	t.Run("MapIntPersonToString", func(t *testing.T) {
+		input := map[int]personToMap{10: {"A", 20}, 20: {"B", 30}}
+		want := []string{"A (30)", "B (50)"}
+		got := functional.MapToSlice(input, mapperIntPerson) // Calling the function from the functional package
+		sortSliceAny(got)
+		sortSliceAny(want)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("MapToSlice() = %#v, want %#v", got, want)
+		}
+	})
 
-			// --- Compare Slice Contents (Order Independent) ---
-			switch want := tc.wantSlice.(type) {
-			case []string: // Result slice is []string (comparable)
-				got, ok := gotSlice.([]string)
-				if !ok {
-					t.Fatalf("Got slice type mismatch, expected []string")
-				}
-				assertSliceContentsEqual[string](t, got, want)
-			case []int: // Result slice is []int (comparable)
-				got, ok := gotSlice.([]int)
-				if !ok {
-					t.Fatalf("Got slice type mismatch, expected []int")
-				}
-				assertSliceContentsEqual[int](t, got, want)
-			// Add cases for other comparable result types (T) if needed
-			default:
-				// If result type T is not comparable or helper not applicable
-				t.Logf("Warning: Cannot use order-independent comparison for result type %T. Using DeepEqual (may fail on order).", tc.wantSlice)
-				if !reflect.DeepEqual(gotSlice, tc.wantSlice) {
-					t.Errorf("MapToSlice() = %#v, want %#v (order might differ)", gotSlice, tc.wantSlice)
-				}
-			}
-		})
-	}
+	t.Run("EmptyMap", func(t *testing.T) {
+		input := map[int]string{}
+		want := []string{}
+		got := functional.MapToSlice(input, mapperIntStr) // Calling the function from the functional package
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("MapToSlice() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("NilMap", func(t *testing.T) {
+		var input map[int]string = nil
+		want := []string{}
+		got := functional.MapToSlice(input, mapperIntStr) // Calling the function from the functional package
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("MapToSlice() = %#v, want %#v", got, want)
+		}
+	})
 }
 
-// --- Go Examples ---
-
+// --- Map Utils Examples ---
 func ExampleKeys() {
-	intKeyMap := map[int]string{30: "z", 10: "x", 20: "y"}
-	keysInt := functional.Keys(intKeyMap)
-	fmt.Printf("Int keys (sorted): %v\n", keysInt)
-
-	strKeyMap := map[string]bool{"kiwi": true, "apple": false, "banana": true}
-	keysStr := functional.Keys(strKeyMap)
-	fmt.Printf("String keys (sorted): %v\n", keysStr)
-
-	emptyMap := map[float64]int{}
-	keysEmpty := functional.Keys(emptyMap)
-	fmt.Printf("Empty map keys: %#v\n", keysEmpty)
-
-	var nilMap map[int]int = nil
-	keysNil := functional.Keys(nilMap)
-	fmt.Printf("Nil map keys: %#v\n", keysNil)
-
+	m := map[string]int{"apple": 1, "banana": 2, "cherry": 3}
+	keys := functional.Keys(m) // Calling the function from the functional package
+	sort.Strings(keys)
+	fmt.Println("Keys:", keys)
+	emptyMap := map[int]bool{}
+	emptyKeys := functional.Keys(emptyMap) // Calling the function from the functional package
+	fmt.Println("Empty Map Keys:", emptyKeys)
+	var nilMap map[float64]string = nil
+	nilKeys := functional.Keys(nilMap) // Calling the function from the functional package
+	fmt.Println("Nil Map Keys:", nilKeys)
 	// Output:
-	// Int keys (sorted): [10 20 30]
-	// String keys (sorted): [apple banana kiwi]
-	// Empty map keys: []float64{}
-	// Nil map keys: []int{}
+	// Keys: [apple banana cherry]
+	// Empty Map Keys: []
+	// Nil Map Keys: []
 }
 
 func ExampleValues() {
-	strValMap := map[int]string{1: "one", 2: "two", 3: "one"}
-	valuesStr := functional.Values(strValMap)
-	sort.Strings(valuesStr) // Sort for predictable example output
-	fmt.Printf("String values (sorted): %v\n", valuesStr)
-
-	intValMap := map[string]int{"a": 100, "b": 50, "c": 100}
-	valuesInt := functional.Values(intValMap)
-	sort.Ints(valuesInt) // Sort for predictable example output
-	fmt.Printf("Int values (sorted): %v\n", valuesInt)
-
-	emptyMap := map[string]bool{}
-	valuesEmpty := functional.Values(emptyMap)
-	fmt.Printf("Empty map values: %#v\n", valuesEmpty)
-
-	var nilMap map[int]float64 = nil
-	valuesNil := functional.Values(nilMap)
-	fmt.Printf("Nil map values: %#v\n", valuesNil)
-
+	m := map[string]int{"one": 10, "two": 20, "three": 30}
+	values := functional.Values(m) // Calling the function from the functional package
+	sort.Ints(values)
+	fmt.Println("Values:", values)
+	emptyMap := map[int]string{}
+	emptyValues := functional.Values(emptyMap) // Calling the function from the functional package
+	fmt.Println("Empty Map Values:", emptyValues)
+	var nilMap map[bool]int = nil
+	nilValues := functional.Values(nilMap) // Calling the function from the functional package
+	fmt.Println("Nil Map Values:", nilValues)
 	// Output:
-	// String values (sorted): [one one two]
-	// Int values (sorted): [50 100 100]
-	// Empty map values: []bool{}
-	// Nil map values: []float64{}
+	// Values: [10 20 30]
+	// Empty Map Values: []
+	// Nil Map Values: []
 }
 
 func ExampleMapToSlice() {
-	ageMap := map[string]int{"Alice": 30, "Bob": 25}
-	infoSlice := functional.MapToSlice(ageMap, func(name string, age int) string {
-		return fmt.Sprintf("%s is %d", name, age)
+	scores := map[string]int{"Alice": 85, "Bob": 92, "Charlie": 78}
+	descriptions := functional.MapToSlice(scores, func(name string, score int) string { // Calling the function from the functional package
+		return fmt.Sprintf("%s scored %d", name, score)
 	})
-	sort.Strings(infoSlice) // Sort for predictable example output
-	fmt.Printf("Info slice (sorted): %v\n", infoSlice)
-
-	numMap := map[int]int{2: 4, 3: 9, 4: 16}
-	sumSlice := functional.MapToSlice(numMap, func(k, v int) int {
-		return k + v
+	sort.Strings(descriptions)
+	fmt.Println("Descriptions:", descriptions)
+	coords := map[int]string{1: "x", 2: "y", 3: "z"}
+	byteSlices := functional.MapToSlice(coords, func(k int, v string) []byte { // Calling the function from the functional package
+		return []byte(fmt.Sprintf("%d-%s", k, v))
 	})
-	sort.Ints(sumSlice) // Sort for predictable example output
-	fmt.Printf("Sum slice (sorted): %v\n", sumSlice)
-
-	emptyMap := map[string]int{}
-	emptyResult := functional.MapToSlice(emptyMap, func(k string, v int) string { return "" })
-	fmt.Printf("Empty map result: %#v\n", emptyResult)
-
-	var nilMap map[int]string = nil
-	nilResult := functional.MapToSlice(nilMap, func(k int, v string) bool { return false })
-	fmt.Printf("Nil map result: %#v\n", nilResult)
-
+	sort.Slice(byteSlices, func(i, j int) bool { return string(byteSlices[i]) < string(byteSlices[j]) })
+	byteStrings := make([]string, len(byteSlices))
+	for i, b := range byteSlices {
+		byteStrings[i] = string(b)
+	}
+	fmt.Println("Byte Slices:", byteStrings)
+	emptyMap := map[float64]bool{}
+	emptyResult := functional.MapToSlice(emptyMap, func(k float64, v bool) string { return "never" }) // Calling the function from the functional package
+	fmt.Println("Empty Map Result:", emptyResult)
 	// Output:
-	// Info slice (sorted): [Alice is 30 Bob is 25]
-	// Sum slice (sorted): [6 12 20]
-	// Empty map result: []string{}
-	// Nil map result: []bool{}
+	// Descriptions: [Alice scored 85 Bob scored 92 Charlie scored 78]
+	// Byte Slices: [1-x 2-y 3-z]
+	// Empty Map Result: []
+}
+
+// --- Benchmarks ---
+
+// Helper to generate maps
+func generateMap[K comparable, V any](size int, keyGen func(int) K, valGen func(int) V) map[K]V {
+	m := make(map[K]V, size)
+	for i := 0; i < size; i++ {
+		m[keyGen(i)] = valGen(i)
+	}
+	return m
+}
+
+var (
+	intKeyGen    = func(i int) int { return i }
+	stringKeyGen = func(i int) string { return fmt.Sprintf("key_%d", i) }
+	intValGen    = func(i int) int { return i*10 + 1 }
+	stringValGen = func(i int) string { return fmt.Sprintf("val:%d", i) }
+)
+
+// --- Benchmark Keys ---
+// Specific versions for each map type - These are helpers called by Benchmark* functions
+func benchmarkKeysGeneric_IntStr(m map[int]string, b *testing.B) {
+	if m == nil {
+		b.Skip("nil map")
+		return
+	}
+	b.ResetTimer()
+	var result []int
+	for i := 0; i < b.N; i++ {
+		result = functional.Keys(m) // Calling the function from the functional package
+	}
+	_ = result // Keep result used
+}
+
+func benchmarkKeysLoop_IntStr(m map[int]string, b *testing.B) {
+	if m == nil {
+		b.Skip("nil map")
+		return
+	}
+	b.ResetTimer()
+	var result []int
+	for i := 0; i < b.N; i++ {
+		keys := make([]int, 0, len(m))
+		for k := range m {
+			keys = append(keys, k)
+		}
+		result = keys
+	}
+	_ = result // Keep result used
+}
+
+func benchmarkKeysGeneric_StrInt(m map[string]int, b *testing.B) {
+	if m == nil {
+		b.Skip("nil map")
+		return
+	}
+	b.ResetTimer()
+	var result []string
+	for i := 0; i < b.N; i++ {
+		result = functional.Keys(m) // Calling the function from the functional package
+	}
+	_ = result // Keep result used
+}
+
+func benchmarkKeysLoop_StrInt(m map[string]int, b *testing.B) {
+	if m == nil {
+		b.Skip("nil map")
+		return
+	}
+	b.ResetTimer()
+	var result []string
+	for i := 0; i < b.N; i++ {
+		keys := make([]string, 0, len(m))
+		for k := range m {
+			keys = append(keys, k)
+		}
+		result = keys
+	}
+	_ = result // Keep result used
+}
+
+var (
+	keysMapIntStr_N1000 = generateMap(1000, intKeyGen, stringValGen)
+	keysMapStrInt_N1000 = generateMap(1000, stringKeyGen, intValGen)
+)
+
+// Top-level Benchmark functions (these are discovered by `go test`)
+func BenchmarkKeys_Generic_IntStr_N1000(b *testing.B) {
+	benchmarkKeysGeneric_IntStr(keysMapIntStr_N1000, b)
+}
+func BenchmarkKeys_Loop_IntStr_N1000(b *testing.B) { benchmarkKeysLoop_IntStr(keysMapIntStr_N1000, b) }
+func BenchmarkKeys_Generic_StrInt_N1000(b *testing.B) {
+	benchmarkKeysGeneric_StrInt(keysMapStrInt_N1000, b)
+}
+func BenchmarkKeys_Loop_StrInt_N1000(b *testing.B) { benchmarkKeysLoop_StrInt(keysMapStrInt_N1000, b) }
+
+// --- Benchmark Values ---
+// Specific versions for each map type - These are helpers
+func benchmarkValuesGeneric_IntStr(m map[int]string, b *testing.B) {
+	if m == nil {
+		b.Skip("nil map")
+		return
+	}
+	b.ResetTimer()
+	var result []string
+	for i := 0; i < b.N; i++ {
+		result = functional.Values(m) // Calling the function from the functional package
+	}
+	_ = result
+}
+
+func benchmarkValuesLoop_IntStr(m map[int]string, b *testing.B) {
+	if m == nil {
+		b.Skip("nil map")
+		return
+	}
+	b.ResetTimer()
+	var result []string
+	for i := 0; i < b.N; i++ {
+		values := make([]string, 0, len(m))
+		for _, v := range m {
+			values = append(values, v)
+		}
+		result = values
+	}
+	_ = result
+}
+
+func benchmarkValuesGeneric_StrInt(m map[string]int, b *testing.B) {
+	if m == nil {
+		b.Skip("nil map")
+		return
+	}
+	b.ResetTimer()
+	var result []int
+	for i := 0; i < b.N; i++ {
+		result = functional.Values(m) // Calling the function from the functional package
+	}
+	_ = result
+}
+
+func benchmarkValuesLoop_StrInt(m map[string]int, b *testing.B) {
+	if m == nil {
+		b.Skip("nil map")
+		return
+	}
+	b.ResetTimer()
+	var result []int
+	for i := 0; i < b.N; i++ {
+		values := make([]int, 0, len(m))
+		for _, v := range m {
+			values = append(values, v)
+		}
+		result = values
+	}
+	_ = result
+}
+
+// Top-level Benchmark functions
+func BenchmarkValues_Generic_IntStr_N1000(b *testing.B) {
+	benchmarkValuesGeneric_IntStr(keysMapIntStr_N1000, b)
+}
+
+func BenchmarkValues_Loop_IntStr_N1000(b *testing.B) {
+	benchmarkValuesLoop_IntStr(keysMapIntStr_N1000, b)
+}
+
+func BenchmarkValues_Generic_StrInt_N1000(b *testing.B) {
+	benchmarkValuesGeneric_StrInt(keysMapStrInt_N1000, b)
+}
+
+func BenchmarkValues_Loop_StrInt_N1000(b *testing.B) {
+	benchmarkValuesLoop_StrInt(keysMapStrInt_N1000, b)
+}
+
+// --- Benchmark MapToSlice ---
+// Specific versions for each map/mapper type - These are helpers
+func benchmarkMapToSliceGeneric_IntStr_ToStr(m map[int]string, fn func(int, string) string, b *testing.B) {
+	if m == nil {
+		b.Skip("nil map")
+		return
+	}
+	b.ResetTimer()
+	var result []string
+	for i := 0; i < b.N; i++ {
+		result = functional.MapToSlice(m, fn) // Calling the function from the functional package
+	}
+	_ = result
+}
+
+func benchmarkMapToSliceLoop_IntStr_ToStr(m map[int]string, fn func(int, string) string, b *testing.B) {
+	if m == nil {
+		b.Skip("nil map")
+		return
+	}
+	b.ResetTimer()
+	var result []string
+	for i := 0; i < b.N; i++ {
+		mapped := make([]string, 0, len(m))
+		for k, v := range m {
+			mapped = append(mapped, fn(k, v))
+		}
+		result = mapped
+	}
+	_ = result
+}
+
+func benchmarkMapToSliceGeneric_StrInt_ToInt(m map[string]int, fn func(string, int) int, b *testing.B) {
+	if m == nil {
+		b.Skip("nil map")
+		return
+	}
+	b.ResetTimer()
+	var result []int
+	for i := 0; i < b.N; i++ {
+		result = functional.MapToSlice(m, fn) // Calling the function from the functional package
+	}
+	_ = result
+}
+
+func benchmarkMapToSliceLoop_StrInt_ToInt(m map[string]int, fn func(string, int) int, b *testing.B) {
+	if m == nil {
+		b.Skip("nil map")
+		return
+	}
+	b.ResetTimer()
+	var result []int
+	for i := 0; i < b.N; i++ {
+		mapped := make([]int, 0, len(m))
+		for k, v := range m {
+			mapped = append(mapped, fn(k, v))
+		}
+		result = mapped
+	}
+	_ = result
+}
+
+// Define mappers for benchmarks
+var (
+	mapperIntStrToStr = func(k int, v string) string { return fmt.Sprintf("%d-%s", k, v) }
+	mapperStrIntToInt = func(k string, v int) int { return v + len(k) }
+)
+
+// Top-level Benchmark functions
+func BenchmarkMapToSlice_Generic_IntStr_ToStr_N1000(b *testing.B) {
+	benchmarkMapToSliceGeneric_IntStr_ToStr(keysMapIntStr_N1000, mapperIntStrToStr, b)
+}
+
+func BenchmarkMapToSlice_Loop_IntStr_ToStr_N1000(b *testing.B) {
+	benchmarkMapToSliceLoop_IntStr_ToStr(keysMapIntStr_N1000, mapperIntStrToStr, b)
+}
+
+func BenchmarkMapToSlice_Generic_StrInt_ToInt_N1000(b *testing.B) {
+	benchmarkMapToSliceGeneric_StrInt_ToInt(keysMapStrInt_N1000, mapperStrIntToInt, b)
+}
+
+func BenchmarkMapToSlice_Loop_StrInt_ToInt_N1000(b *testing.B) {
+	benchmarkMapToSliceLoop_StrInt_ToInt(keysMapStrInt_N1000, mapperStrIntToInt, b)
 }

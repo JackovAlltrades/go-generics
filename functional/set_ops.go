@@ -1,9 +1,9 @@
 package functional
 
-import (
-	"cmp" // Import cmp (Go 1.21+)
-	"sort"
-)
+// Import necessary packages. 'cmp' is removed as it's no longer needed by Union.
+// 'sort' might be used by other functions or internally, keep for now if needed elsewhere.
+// Consider removing 'sort' if no function in this *file* uses it directly.
+// Keep ONLY if Intersection/Difference/Unique implementations happen to use it internally
 
 // Intersection returns a new slice containing elements that are present
 // in *both* input slices (s1 and s2). The order of elements in the result
@@ -27,50 +27,43 @@ import (
 //	     Returns an empty slice ([]T{}) if either input is nil/empty, or if
 //	     there is no intersection.
 func Intersection[T comparable](s1, s2 []T) []T {
-	// Handle nil/empty inputs efficiently (Guideline #3, #5)
 	if len(s1) == 0 || len(s2) == 0 {
 		return []T{}
 	}
 
-	// Create a set from the second slice for efficient lookup
-	// Use capacity hint (Guideline #5)
 	s2Set := make(map[T]struct{}, len(s2))
 	for _, v := range s2 {
 		s2Set[v] = struct{}{}
 	}
 
-	// Create a set to track elements added to the result, ensuring uniqueness
-	// and preserving s1 order. Use min() from Go 1.21+.
-	addedSet := make(map[T]struct{}, min(len(s1), len(s2)))
-
-	// Result slice. Capacity is hard to predict, start with 0.
+	// Using min() requires Go 1.21+. If targeting older versions, implement min manually.
+	// Or simply use len(s1) as upper bound.
+	addedSetCapacity := len(s1)     // Default capacity
+	if len(s2) < addedSetCapacity { // Estimate based on smaller potential intersection size
+		addedSetCapacity = len(s2)
+	}
+	addedSet := make(map[T]struct{}, addedSetCapacity)
 	result := make([]T, 0)
 
-	// Iterate through the first slice (s1)
 	for _, v := range s1 {
-		// Check if element exists in s2 AND hasn't been added to result yet
 		_, existsInS2 := s2Set[v]
 		_, alreadyAdded := addedSet[v]
 
 		if existsInS2 && !alreadyAdded {
 			result = append(result, v)
-			addedSet[v] = struct{}{} // Mark as added
+			addedSet[v] = struct{}{}
 		}
 	}
-
 	return result
 }
 
 // Union returns a new slice containing the unique elements present in
 // *either* of the input slices (s1 or s2).
-// The elements in the returned slice are sorted according to the standard Go
-// sorting order for the element type T.
+// The order of elements in the returned slice is not guaranteed.
 //
 // Type Parameters:
 //
-//	T: The type of elements in the slices. Must satisfy the cmp.Ordered
-//	   constraint (e.g., numeric types, strings) for sorting. This
-//	   implies comparable.
+//	T: The type of elements in the slices. Must be comparable. // CORRECTED constraint
 //
 // Parameters:
 //
@@ -79,41 +72,36 @@ func Intersection[T comparable](s1, s2 []T) []T {
 //
 // Returns:
 //
-//	[]T: A new slice containing the unique elements from both s1 and s2, sorted.
-//	     Returns an empty slice ([]T{}) if both inputs are nil/empty.
-func Union[T cmp.Ordered](s1, s2 []T) []T {
-	// Determine initial capacity hint (sum of lengths is upper bound) (Guideline #5)
-	capacityHint := len(s1) + len(s2) // len(nil) is 0, safe
+//	[]T: A new slice containing the unique elements from both s1 and s2. The order
+//	     is not guaranteed. Returns an empty slice ([]T{}) if both inputs are nil/empty.
+func Union[T comparable](s1, s2 []T) []T { // CORRECTED constraint to comparable
+	// Determine initial capacity hint
+	capacityHint := len(s1) + len(s2)
+	if capacityHint == 0 && (s1 != nil || s2 != nil) { // Handle case where slices have 0 len but aren't nil
+		// If either is non-nil but empty, capacity can be small for the map.
+		// If both nil, map shouldn't be created anyway.
+		// Heuristic: just use the sum, len(nil) is 0.
+	}
 
-	// Use a map to store unique elements encountered.
 	unionSet := make(map[T]struct{}, capacityHint) // Use hint
 
-	// Add elements from the first slice
 	for _, v := range s1 {
 		unionSet[v] = struct{}{}
 	}
-
-	// Add elements from the second slice (duplicates are ignored by map)
 	for _, v := range s2 {
 		unionSet[v] = struct{}{}
 	}
 
-	// Handle case where both inputs were empty/nil resulting in empty set
 	if len(unionSet) == 0 {
-		return []T{} // Return empty slice (Guideline #3)
+		return []T{}
 	}
 
-	// Extract unique elements into a slice
-	result := make([]T, 0, len(unionSet))
+	result := make([]T, 0, len(unionSet)) // Preallocate result based on actual unique count
 	for k := range unionSet {
 		result = append(result, k)
 	}
 
-	// Sort the result slice for deterministic output (requires cmp.Ordered)
-	sort.Slice(result, func(i, j int) bool {
-		return result[i] < result[j] // Safe due to cmp.Ordered constraint
-	})
-
+	// No sorting here! Order depends on map iteration.
 	return result
 }
 
@@ -137,34 +125,63 @@ func Union[T cmp.Ordered](s1, s2 []T) []T {
 //	     Returns an empty slice ([]T{}) if s1 is nil/empty. Returns a slice
 //	     containing the unique elements of s1 (ordered by first appearance) if s2 is nil/empty.
 func Difference[T comparable](s1, s2 []T) []T {
-	// If s1 is empty/nil, the difference is always empty
 	if len(s1) == 0 {
-		return []T{} // Guideline #3
+		return []T{}
 	}
 
-	// Create a set from the second slice for efficient lookup
-	// Handle nil s2 gracefully - the set will be empty.
-	s2Set := make(map[T]struct{}, len(s2)) // Capacity hint (Guideline #5)
+	s2Set := make(map[T]struct{}, len(s2))
 	for _, v := range s2 {
 		s2Set[v] = struct{}{}
 	}
 
-	// Create a set to track elements added to the result (handles duplicates in s1)
-	addedSet := make(map[T]struct{}, len(s1)) // Capacity hint (Guideline #5)
+	// Use len(s1) as capacity hint, as max difference size is len(s1)
+	addedSet := make(map[T]struct{}, len(s1))
+	result := make([]T, 0)
 
-	// Result slice.
-	result := make([]T, 0) // Start with 0 capacity
-
-	// Iterate through the first slice (s1)
 	for _, v := range s1 {
-		// Check if element exists in s2 AND hasn't been added to result yet
 		_, existsInS2 := s2Set[v]
 		_, alreadyAdded := addedSet[v]
 
-		// Only add if it's NOT in s2 AND NOT already added from s1
 		if !existsInS2 && !alreadyAdded {
 			result = append(result, v)
-			addedSet[v] = struct{}{} // Mark as added
+			addedSet[v] = struct{}{}
+		}
+	}
+
+	return result
+}
+
+// Unique returns a new slice containing only the unique elements from the
+// input slice, preserving the order of first appearance.
+//
+// Type Parameters:
+//
+//	T: The type of elements in the slice. Must be comparable.
+//
+// Parameters:
+//
+//	slice: The input slice. Can be nil or empty.
+//
+// Returns:
+//
+//	[]T: A new slice containing the unique elements from the input,
+//	     in the order of their first appearance.
+//	     Returns an empty slice ([]T{}) if the input is nil or empty.
+func Unique[T comparable](slice []T) []T {
+	if len(slice) == 0 {
+		return []T{}
+	}
+
+	// Preallocate map based on input length (upper bound)
+	seen := make(map[T]struct{}, len(slice))
+	// Start result slice with 0 capacity - append will handle growth.
+	// Alternatively, provide a hint like make([]T, 0, len(slice)/2) - requires testing.
+	result := make([]T, 0)
+
+	for _, v := range slice {
+		if _, ok := seen[v]; !ok {
+			seen[v] = struct{}{}
+			result = append(result, v)
 		}
 	}
 

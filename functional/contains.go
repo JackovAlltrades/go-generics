@@ -1,4 +1,3 @@
-// Package functional provides generic functional programming utilities.
 package functional
 
 // Contains checks if a slice contains a specific value.
@@ -17,14 +16,15 @@ package functional
 //	true if the value is found in the slice, false otherwise.
 //	For nil or empty slices, returns false.
 func Contains[T comparable](slice []T, value T) bool {
-	if len(slice) == 0 {
-		return false
-	}
+	// Optimization: Check length outside the loop (Guideline #5)
+	// if len(slice) == 0 { // This check is implicitly handled by the loop range
+	// 	return false
+	// }
 
 	for _, item := range slice {
 		if item == value {
-			return true
+			return true // Return early (Guideline #5)
 		}
 	}
-	return false
+	return false // Not found after checking all items
 }

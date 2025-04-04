@@ -153,3 +153,90 @@ func ExampleFilter_strings() {
 	fmt.Println(aWords)
 	// Output: [apple apricot avocado]
 }
+
+// --- Benchmarks ---
+
+// Re-use helper from map_test.go conceptually - generate a slice of ints
+// (Can be copy-pasted if needed, or assume available if running ./...)
+func generateIntSliceBenchFilter(size int) []int {
+	slice := make([]int, size)
+	for i := 0; i < size; i++ {
+		slice[i] = i // Simple predictable data
+	}
+	return slice
+}
+
+// Predicate function for benchmarks (e.g., filter even numbers)
+var isEvenPredicate = func(i int) bool {
+	return i%2 == 0
+}
+
+// Benchmark for functional.Filter
+func benchmarkFilterGeneric(size int, b *testing.B) {
+	inputSlice := generateIntSliceBenchFilter(size)
+	predicate := isEvenPredicate // Use the same predicate
+	b.ResetTimer()               // Start timing after setup
+	for i := 0; i < b.N; i++ {
+		// Assign to a local variable to prevent compiler optimization
+		_ = functional.Filter(inputSlice, predicate)
+	}
+}
+
+// Benchmark for traditional for loop filter
+func benchmarkFilterLoop(size int, b *testing.B) {
+	inputSlice := generateIntSliceBenchFilter(size)
+	predicate := isEvenPredicate // Use the same predicate
+	b.ResetTimer()               // Start timing after setup
+	for i := 0; i < b.N; i++ {
+		// Manual loop implementation (append style)
+		// Minimal preallocation is common for Filter as size is unknown
+		result := make([]int, 0) // Start with zero capacity or small hint
+		for _, val := range inputSlice {
+			if predicate(val) {
+				result = append(result, val)
+			}
+		}
+		// Assign to prevent optimization
+		_ = result
+	}
+}
+
+// Benchmark for traditional for loop filter with preallocation guess
+// (Less common unless you have a good estimate of filter rate)
+func benchmarkFilterLoopPrealloc(size int, b *testing.B) {
+	inputSlice := generateIntSliceBenchFilter(size)
+	predicate := isEvenPredicate // Use the same predicate
+	b.ResetTimer()               // Start timing after setup
+	for i := 0; i < b.N; i++ {
+		// Manual loop implementation (preallocation guess style)
+		// Guessing half the size might be reasonable for evens.
+		result := make([]int, 0, size/2+1) // Preallocate with guess
+		for _, val := range inputSlice {
+			if predicate(val) {
+				result = append(result, val)
+			}
+		}
+		// Assign to prevent optimization
+		_ = result
+	}
+}
+
+// --- Run Benchmarks for different sizes ---
+
+func BenchmarkFilter_Generic_10(b *testing.B)      { benchmarkFilterGeneric(10, b) }
+func BenchmarkFilter_Loop_10(b *testing.B)         { benchmarkFilterLoop(10, b) }
+func BenchmarkFilter_LoopPrealloc_10(b *testing.B) { benchmarkFilterLoopPrealloc(10, b) }
+
+func BenchmarkFilter_Generic_100(b *testing.B)      { benchmarkFilterGeneric(100, b) }
+func BenchmarkFilter_Loop_100(b *testing.B)         { benchmarkFilterLoop(100, b) }
+func BenchmarkFilter_LoopPrealloc_100(b *testing.B) { benchmarkFilterLoopPrealloc(100, b) }
+
+func BenchmarkFilter_Generic_1000(b *testing.B)      { benchmarkFilterGeneric(1000, b) }
+func BenchmarkFilter_Loop_1000(b *testing.B)         { benchmarkFilterLoop(1000, b) }
+func BenchmarkFilter_LoopPrealloc_1000(b *testing.B) { benchmarkFilterLoopPrealloc(1000, b) }
+
+func BenchmarkFilter_Generic_10000(b *testing.B)      { benchmarkFilterGeneric(10000, b) }
+func BenchmarkFilter_Loop_10000(b *testing.B)         { benchmarkFilterLoop(10000, b) }
+func BenchmarkFilter_LoopPrealloc_10000(b *testing.B) { benchmarkFilterLoopPrealloc(10000, b) }
+
+// Consider adding larger sizes (100k, 1M) if performance at scale is critical

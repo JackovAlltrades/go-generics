@@ -1,70 +1,83 @@
 package functional
 
-import (
-	"cmp" // Import the cmp package (Go 1.21+)
-	"sort"
-)
+// Import 'sort' only if needed by other functions in this file.
+// If Keys was the only user, 'sort' can be removed.
+// import "sort"
+// Keep cmp if other functions use it, otherwise remove.
 
-// Keys returns a slice containing all the keys from the input map.
-// The order of keys in the returned slice is guaranteed to be sorted
-// according to the standard Go sorting order for the key type K.
-// This provides deterministic output, which is often useful.
+// Keys extracts the keys from a map into a slice.
+// The order of keys in the returned slice is not guaranteed.
 //
 // Type Parameters:
 //
-//	K: The type of the map keys. Must satisfy the cmp.Ordered constraint
-//	   (e.g., numeric types, strings). This implies comparable.
-//	V: The type of the map values (not constrained).
+//	K: The type of the map keys. Must be comparable. // CORRECTED Constraint
+//	V: The type of the map values (any).
 //
 // Parameters:
 //
-//	inputMap: The map from which to extract keys. Can be nil or empty.
+//	inputMap: The map from which to extract keys. Can be nil.
 //
 // Returns:
 //
-//	[]K: A new slice containing the keys from the map, sorted.
-//	     Returns an empty slice ([]K{}) if the input map is nil or empty.
-func Keys[K cmp.Ordered, V any](inputMap map[K]V) []K {
-	if len(inputMap) == 0 {
+//	[]K: A slice containing the keys from the map. Returns an empty slice if
+//	     the input map is nil or empty. Order is not guaranteed.
+func Keys[K comparable, V any](inputMap map[K]V) []K { // CORRECTED Constraint
+	// Handle nil or empty map efficiently. Check length *after* nil check for safety,
+	// though len(nil map) is 0.
+	if inputMap == nil {
+		return []K{}
+	}
+	mapLen := len(inputMap)
+	if mapLen == 0 {
 		return []K{}
 	}
 
-	keys := make([]K, 0, len(inputMap))
+	// Preallocate result slice with the correct capacity.
+	keys := make([]K, 0, mapLen)
+
+	// Iterate over the map and append keys.
 	for k := range inputMap {
 		keys = append(keys, k)
 	}
 
-	// Sort the keys using the now-safe '<' operator due to cmp.Ordered constraint.
-	sort.Slice(keys, func(i, j int) bool {
-		return keys[i] < keys[j] // This is now guaranteed to work for K
-	})
+	// --- REMOVED SORTING STEP ---
+	// sort.Slice(keys, func(i, j int) bool {
+	// 	return keys[i] < keys[j] // This requires K cmp.Ordered
+	// })
 
 	return keys
 }
 
-// Values returns a slice containing all the values from the input map.
-// The order of values in the returned slice is arbitrary and corresponds
-// to the iteration order of the map, which is not guaranteed.
+// Values extracts the values from a map into a slice.
+// The order of values in the returned slice corresponds to the iteration order
+// of the map, which is not guaranteed.
 //
 // Type Parameters:
 //
-//	K: The type of the map keys. Must be comparable.
+//	K: The type of the map keys (must be comparable).
 //	V: The type of the map values.
 //
 // Parameters:
 //
-//	inputMap: The map from which to extract values. Can be nil or empty.
+//	inputMap: The map from which to extract values. Can be nil.
 //
 // Returns:
 //
-//	[]V: A new slice containing the values from the map.
-//	     Returns an empty slice ([]V{}) if the input map is nil or empty.
+//	[]V: A slice containing the values from the map. Returns an empty slice if
+//	     the input map is nil or empty. Order is not guaranteed.
 func Values[K comparable, V any](inputMap map[K]V) []V {
-	if len(inputMap) == 0 {
+	if inputMap == nil {
+		return []V{}
+	}
+	mapLen := len(inputMap)
+	if mapLen == 0 {
 		return []V{}
 	}
 
-	values := make([]V, 0, len(inputMap))
+	// Preallocate result slice.
+	values := make([]V, 0, mapLen)
+
+	// Iterate over the map and append values.
 	for _, v := range inputMap {
 		values = append(values, v)
 	}
@@ -72,43 +85,41 @@ func Values[K comparable, V any](inputMap map[K]V) []V {
 	return values
 }
 
-// MapToSlice transforms a map into a slice by applying a transformation function
-// to each key-value pair. The order of elements in the resulting slice is
-// arbitrary and depends on the map's iteration order.
+// MapToSlice transforms a map into a slice by applying a function to each
+// key-value pair. The order of elements in the resulting slice corresponds to the
+// map's iteration order, which is not guaranteed.
 //
 // Type Parameters:
 //
-//	K: The type of the map keys. Must be comparable.
+//	K: The type of the map keys (must be comparable).
 //	V: The type of the map values.
-//	T: The type of the elements in the resulting slice.
+//	R: The type of the elements in the resulting slice.
 //
 // Parameters:
 //
-//	inputMap: The map to transform. Can be nil or empty.
-//	transformFunc: A function that takes a key (K) and a value (V)
-//	               and returns an element (T) for the output slice.
+//	inputMap: The map to process. Can be nil.
+//	fn:       A function that takes a key (K) and a value (V) and returns a
+//	          result (R) to be included in the output slice.
 //
 // Returns:
 //
-//	[]T: A new slice containing the results of applying transformFunc
-//	     to each key-value pair. Returns an empty slice ([]T{}) if the
-//	     input map is nil or empty.
-func MapToSlice[ // Break before type params
-	K comparable, // Type param 1
-	V any, // Type param 2
-	T any, // Type param 3
-]( // Break before regular params
-	inputMap map[K]V, // Param 1
-	transformFunc func(key K, value V) T, // Param 2
-) []T { // Closing paren and return type on new line
-	if len(inputMap) == 0 {
-		return []T{}
+//	[]R: A slice containing the results of applying fn to each key-value pair.
+//	     Returns an empty slice if the input map is nil or empty. Order is not guaranteed.
+func MapToSlice[K comparable, V any, R any](inputMap map[K]V, fn func(k K, v V) R) []R {
+	if inputMap == nil {
+		return []R{}
+	}
+	mapLen := len(inputMap)
+	if mapLen == 0 {
+		return []R{}
 	}
 
-	result := make([]T, 0, len(inputMap))
+	// Preallocate result slice.
+	result := make([]R, 0, mapLen)
 
+	// Iterate over the map, apply the function, and append the result.
 	for k, v := range inputMap {
-		result = append(result, transformFunc(k, v))
+		result = append(result, fn(k, v))
 	}
 
 	return result

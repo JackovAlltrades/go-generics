@@ -301,3 +301,68 @@ func ExampleReduce() {
 	// Max Score: 95
 	// Result from nil: 100
 }
+
+// --- Benchmarks ---
+
+// Helper function to generate a slice of ints (can reuse from other files)
+func generateIntSliceBenchReduce(size int) []int {
+	slice := make([]int, size)
+	for i := 0; i < size; i++ {
+		slice[i] = i // Use simple values
+	}
+	return slice
+}
+
+// Reducer function for benchmarks (simple integer sum)
+var intSumReducer = func(acc int, i int) int {
+	return acc + i
+}
+
+// Benchmark for functional.Reduce
+func benchmarkReduceGeneric(size int, b *testing.B) {
+	inputSlice := generateIntSliceBenchReduce(size)
+	reducer := intSumReducer
+	initial := 0
+	b.ResetTimer() // Start timing after setup
+	var result int // Declare outside loop to avoid measuring declaration time
+	for i := 0; i < b.N; i++ {
+		// Assign to prevent optimization
+		result = functional.Reduce(inputSlice, initial, reducer)
+	}
+	_ = result // Use result after loop
+}
+
+// Benchmark for traditional for loop reduce
+func benchmarkReduceLoop(size int, b *testing.B) {
+	inputSlice := generateIntSliceBenchReduce(size)
+	reducer := intSumReducer // Use same logic for fair comparison
+	initial := 0
+	b.ResetTimer() // Start timing after setup
+	var result int // Declare outside loop
+	for i := 0; i < b.N; i++ {
+		// Manual loop implementation
+		accumulator := initial
+		for _, val := range inputSlice {
+			accumulator = reducer(accumulator, val) // Apply the 'reducer' logic
+		}
+		// Assign to prevent optimization
+		result = accumulator
+	}
+	_ = result // Use result after loop
+}
+
+// --- Run Benchmarks for different sizes ---
+
+func BenchmarkReduce_Generic_10(b *testing.B) { benchmarkReduceGeneric(10, b) }
+func BenchmarkReduce_Loop_10(b *testing.B)    { benchmarkReduceLoop(10, b) }
+
+func BenchmarkReduce_Generic_100(b *testing.B) { benchmarkReduceGeneric(100, b) }
+func BenchmarkReduce_Loop_100(b *testing.B)    { benchmarkReduceLoop(100, b) }
+
+func BenchmarkReduce_Generic_1000(b *testing.B) { benchmarkReduceGeneric(1000, b) }
+func BenchmarkReduce_Loop_1000(b *testing.B)    { benchmarkReduceLoop(1000, b) }
+
+func BenchmarkReduce_Generic_10000(b *testing.B) { benchmarkReduceGeneric(10000, b) }
+func BenchmarkReduce_Loop_10000(b *testing.B)    { benchmarkReduceLoop(10000, b) }
+
+// Consider adding larger sizes if needed

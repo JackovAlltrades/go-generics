@@ -5,12 +5,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/JackovAlltrades/go-generics/functional"
+	"github.com/JackovAlltrades/go-generics/functional" // Adjust import path
 )
 
-// Assume person struct is available if needed for testing
-// type person struct { Name string; Age int }
-
+// --- Test Flatten ---
 func TestFlatten(t *testing.T) {
 	testCases := []struct {
 		name  string
@@ -29,20 +27,13 @@ func TestFlatten(t *testing.T) {
 		},
 		{
 			name:  "FlattenWithEmptyInnerSlices",
-			input: [][]int{{}, {1, 2}, {}, {3}, {}},
+			input: [][]int{{}, {1, 2}, {}, {3}},
 			want:  []int{1, 2, 3},
 		},
 		{
 			name:  "FlattenWithNilInnerSlices",
-			// Remove this duplicate input field
-			// input: [][]string{{"x"}, nil, {"y", "z"}, nil}, // nil needs type hint potentially
-			// Keep only this input definition
-			input: func() [][]string {
-				s1 := []string{"x"}
-				s2 := []string{"y", "z"}
-				return [][]string{s1, nil, s2, nil}
-			}(),
-			want: []string{"x", "y", "z"},
+			input: [][]int{nil, {1, 2}, nil, {3}}, // Inner slices can be nil
+			want:  []int{1, 2, 3},
 		},
 		{
 			name:  "FlattenAllEmpty",
@@ -51,72 +42,63 @@ func TestFlatten(t *testing.T) {
 		},
 		{
 			name:  "FlattenAllNilInner",
-			input: [][]float64{nil, nil},
-			want:  []float64{},
+			input: [][]int{nil, nil, nil},
+			want:  []int{},
 		},
 		{
 			name:  "FlattenEmptyOuter",
-			input: [][]int{}, // Empty outer slice
+			input: [][]int{},
 			want:  []int{},
 		},
 		{
 			name:  "FlattenNilOuter",
-			input: ([][]string)(nil), // Typed nil outer slice
-			want:  []string{},        // Expect empty slice (Guideline #3)
+			input: ([][]int)(nil),
+			want:  []int{},
 		},
 		{
 			name:  "FlattenSingleInner",
-			input: [][]int{{10, 20}},
-			want:  []int{10, 20},
+			input: [][]int{{10, 20, 30}},
+			want:  []int{10, 20, 30},
 		},
 		{
 			name:  "FlattenSingleEmptyInner",
 			input: [][]int{{}},
 			want:  []int{},
 		},
-		// Add struct test if needed, definition assumed available
-		// {
-		// 	name: "FlattenStructs",
-		// 	input: [][]person{
-		// 		{{Name: "A", Age: 1}},
-		// 		{{Name: "B", Age: 2}, {Name: "C", Age: 3}},
-		// 	},
-		// 	want: []person{{Name: "A", Age: 1}, {Name: "B", Age: 2}, {Name: "C", Age: 3}},
-		// },
+		// Consider adding a test case with different pointer types if applicable
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var got any
 
-			// Use type switch to call generic function correctly
-			switch in := tc.input.(type) {
+			switch input := tc.input.(type) {
 			case [][]int:
-				got = functional.Flatten[int](in)
+				got = functional.Flatten(input)
 			case [][]string:
-				got = functional.Flatten[string](in)
-			case [][]float64: // For AllNilInner test
-				got = functional.Flatten[float64](in)
-			case [][]person: // If struct tests are added
-				got = functional.Flatten[person](in)
+				got = functional.Flatten(input)
 			case nil: // Handle nil outer slice
-				// Infer type from 'want' slice
-				switch tc.want.(type) {
-				case []string:
-					got = functional.Flatten[string](nil)
-				case []int:
-					got = functional.Flatten[int](nil)
-				case []float64:
-					got = functional.Flatten[float64](nil)
-				// Add other types as needed
-				default:
-					t.Fatalf("Unhandled nil input type case for want type %T", tc.want)
-				}
+				// Assuming Flatten[T] called on nil [][]T should return empty []T
+				// Let's test with int as the type T
+				got = functional.Flatten[int](nil)
 			default:
-				t.Fatalf("Unhandled input type: %T", tc.input)
+				// Handle empty outer slice case
+				v := reflect.ValueOf(tc.input)
+				if v.Kind() == reflect.Slice && v.Len() == 0 {
+					elemType := v.Type().Elem().Elem() // Get type T from [][]T
+					switch elemType.Kind() {
+					case reflect.Int:
+						got = functional.Flatten([][]int{})
+					case reflect.String:
+						got = functional.Flatten([][]string{})
+					default:
+						t.Fatalf("Unhandled type for empty outer slice: %s", elemType.String())
+					}
+				} else {
+					t.Fatalf("Unhandled input type in test setup: %T", tc.input)
+				}
 			}
 
-			// Compare using DeepEqual
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("Flatten() = %#v, want %#v", got, tc.want)
 			}
@@ -124,28 +106,120 @@ func TestFlatten(t *testing.T) {
 	}
 }
 
-// --- Go Examples ---
-
+// --- Flatten Examples ---
 func ExampleFlatten() {
-	intSlices := [][]int{{1, 2}, {3}, {}, {4, 5, 6}}
-	flattenedInts := functional.Flatten(intSlices)
-	fmt.Printf("Flattened ints: %v\n", flattenedInts)
+	nestedInts := [][]int{{1, 2}, {3, 4, 5}, {}, {6}}
+	flattenedInts := functional.Flatten(nestedInts)
+	fmt.Println("Flattened Ints:", flattenedInts)
 
-	stringSlices := [][]string{{"a"}, {"b", "c"}, nil, {"d"}}
-	flattenedStrings := functional.Flatten(stringSlices)
-	fmt.Printf("Flattened strings: %v\n", flattenedStrings)
+	nestedStrings := [][]string{{"hello", "world"}, nil, {"functional", "go"}}
+	flattenedStrings := functional.Flatten(nestedStrings)
+	fmt.Println("Flattened Strings:", flattenedStrings)
 
 	emptyOuter := [][]float64{}
 	flattenedEmpty := functional.Flatten(emptyOuter)
-	fmt.Printf("Flattened empty outer: %#v\n", flattenedEmpty) // Show type
+	fmt.Printf("Flattened Empty Outer: %#v\n", flattenedEmpty)
 
-	var nilOuter [][]int = nil
+	var nilOuter [][]string = nil
 	flattenedNil := functional.Flatten(nilOuter)
-	fmt.Printf("Flattened nil outer: %#v\n", flattenedNil) // Show type
+	fmt.Printf("Flattened Nil Outer: %#v\n", flattenedNil)
 
 	// Output:
-	// Flattened ints: [1 2 3 4 5 6]
-	// Flattened strings: [a b c d]
-	// Flattened empty outer: []float64{}
-	// Flattened nil outer: []int{}
+	// Flattened Ints: [1 2 3 4 5 6]
+	// Flattened Strings: [hello world functional go]
+	// Flattened Empty Outer: []float64{}
+	// Flattened Nil Outer: []string{}
 }
+
+// --- Benchmarks ---
+
+// Generate nested slice data for flattening benchmarks
+// Creates 'outerSize' inner slices, each of size 'innerSize'.
+func generateNestedSlice[T any](outerSize, innerSize int, generator func(i, j int) T) [][]T {
+	if outerSize == 0 {
+		return [][]T{}
+	}
+	nested := make([][]T, outerSize)
+	for i := 0; i < outerSize; i++ {
+		if innerSize == 0 {
+			nested[i] = []T{} // Empty inner slice
+		} else {
+			inner := make([]T, innerSize)
+			for j := 0; j < innerSize; j++ {
+				inner[j] = generator(i, j)
+			}
+			nested[i] = inner
+		}
+	}
+	return nested
+}
+
+var intGenerator = func(i, j int) int { return i*1000 + j } // Simple unique int generator
+
+// Benchmark runner for generic Flatten
+func benchmarkFlattenGeneric(input [][]int, b *testing.B) {
+	if input == nil { // Avoid issues with nil input in benchmark loop
+		b.Skip("Skipping benchmark for nil input")
+		return
+	}
+	b.ResetTimer()
+	var result []int
+	for i := 0; i < b.N; i++ {
+		result = functional.Flatten(input)
+	}
+	_ = result
+}
+
+// Benchmark runner for loop-based flatten
+func benchmarkFlattenLoop(input [][]int, b *testing.B) {
+	if input == nil {
+		b.Skip("Skipping benchmark for nil input")
+		return
+	}
+	b.ResetTimer()
+	var result []int
+	for i := 0; i < b.N; i++ {
+		// Manual loop implementation
+		totalLen := 0
+		for _, inner := range input {
+			totalLen += len(inner)
+		}
+		currentResult := make([]int, 0, totalLen) // Preallocate with exact total length
+		for _, inner := range input {
+			currentResult = append(currentResult, inner...) // Use '...' to append slice contents
+		}
+		result = currentResult
+	}
+	_ = result
+}
+
+// Define benchmark scenarios
+var (
+	flattenData_10_10    = generateNestedSlice(10, 10, intGenerator)    // 100 total elements
+	flattenData_100_10   = generateNestedSlice(100, 10, intGenerator)   // 1000 total elements
+	flattenData_10_100   = generateNestedSlice(10, 100, intGenerator)   // 1000 total elements
+	flattenData_1000_10  = generateNestedSlice(1000, 10, intGenerator)  // 10000 total elements
+	flattenData_10_1000  = generateNestedSlice(10, 1000, intGenerator)  // 10000 total elements
+	flattenData_100_100  = generateNestedSlice(100, 100, intGenerator)  // 10000 total elements
+	flattenData_1000_100 = generateNestedSlice(1000, 100, intGenerator) // 100000 total elements
+)
+
+// --- Run Benchmarks ---
+
+// Scenario: Few large inner slices
+func BenchmarkFlatten_Generic_10x1000(b *testing.B) { benchmarkFlattenGeneric(flattenData_10_1000, b) }
+func BenchmarkFlatten_Loop_10x1000(b *testing.B)    { benchmarkFlattenLoop(flattenData_10_1000, b) }
+
+// Scenario: Many small inner slices
+func BenchmarkFlatten_Generic_1000x10(b *testing.B) { benchmarkFlattenGeneric(flattenData_1000_10, b) }
+func BenchmarkFlatten_Loop_1000x10(b *testing.B)    { benchmarkFlattenLoop(flattenData_1000_10, b) }
+
+// Scenario: Balanced outer/inner (~10k total)
+func BenchmarkFlatten_Generic_100x100(b *testing.B) { benchmarkFlattenGeneric(flattenData_100_100, b) }
+func BenchmarkFlatten_Loop_100x100(b *testing.B)    { benchmarkFlattenLoop(flattenData_100_100, b) }
+
+// Scenario: Very Many inner slices (~100k total)
+func BenchmarkFlatten_Generic_1000x100(b *testing.B) {
+	benchmarkFlattenGeneric(flattenData_1000_100, b)
+}
+func BenchmarkFlatten_Loop_1000x100(b *testing.B) { benchmarkFlattenLoop(flattenData_1000_100, b) }

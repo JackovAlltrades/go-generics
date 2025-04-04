@@ -1,8 +1,11 @@
+// functional/chunk.go (or wherever your Chunk function is defined)
+
 package functional
 
-// Chunk splits a slice into smaller slices (chunks) of a specified size.
-// The last chunk may contain fewer elements than the specified size if the
-// total number of elements is not evenly divisible by the chunk size.
+// Chunk divides a slice into smaller slices of a specified size.
+// The last chunk may have fewer elements if the input slice's length
+// is not evenly divisible by the size.
+// Panics if size is not positive.
 //
 // Type Parameters:
 //
@@ -10,42 +13,44 @@ package functional
 //
 // Parameters:
 //
-//	input: The slice to split into chunks.
-//	size:  The desired size of each chunk. Must be greater than 0.
+//	slice: The input slice. Can be nil or empty.
+//	size:  The desired size of each chunk. Must be positive.
 //
 // Returns:
 //
-//	[][]T: A new slice of slices, where each inner slice represents a chunk.
-//	       Returns an empty slice of slices ([][]T{}) if the input slice is
-//	       nil or empty, or if the specified size is less than or equal to 0.
+//	[][]T: A new slice containing slices (chunks) of the original data.
+//	       Returns an empty slice of slices ([][]T{}) if the input is nil/empty.
 //
 // The original input slice is never modified. The returned inner slices are
 // subslices of the original input slice's underlying array.
-func Chunk[T any](input []T, size int) [][]T {
-	inputLen := len(input)
-
-	// Handle invalid size or empty/nil input (Guideline #3, #5)
-	if size <= 0 || inputLen == 0 {
-		return [][]T{} // Return empty slice of slices
+func Chunk[T any](slice []T, size int) [][]T {
+	// Panic if size is not positive
+	if size <= 0 {
+		panic("functional.Chunk: size must be positive")
 	}
 
-	// Calculate the number of chunks needed.
-	// Ceiling division: (numerator + denominator - 1) / denominator
+	inputLen := len(slice)
+
+	// Handle nil or empty input slice after the size check
+	if inputLen == 0 {
+		return [][]T{}
+	}
+
+	// Calculate the number of chunks needed using ceiling division
 	numChunks := (inputLen + size - 1) / size
 
-	// Preallocate the outer slice with the exact number of chunks (Guideline #5)
+	// Preallocate the outer slice with the exact number of chunks (Optimization)
 	result := make([][]T, 0, numChunks)
 
-	// Iterate through the input slice, creating chunks
+	// Loop through the input slice, creating chunks
 	for i := 0; i < inputLen; i += size {
-		// Calculate the end index for the current chunk
 		end := i + size
-		// Ensure the end index does not exceed the slice bounds
+		// Ensure 'end' does not exceed the slice bounds for the last chunk
 		if end > inputLen {
 			end = inputLen
 		}
-		// Append the subslice (chunk) to the result
-		result = append(result, input[i:end])
+		// Append the sub-slice (chunk) to the result
+		result = append(result, slice[i:end])
 	}
 
 	return result
