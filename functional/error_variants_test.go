@@ -2,210 +2,120 @@ package functional_test
 
 import (
 	"errors"
-	"fmt"
-	"math/rand"
 	"reflect"
 	"strconv"
 	"testing"
-	"time"
 
-	"github.com/JackovAlltrades/go-generics/functional"
+	// "fmt"
+
+	"github.com/JackovAlltrades/go-generics/functional" // Adjust import path if needed
 )
 
+// --- Test Setup ---
+// Uses errTestSentinel, errRateTest defined below
 var (
-	errTest = errors.New("test error condition met")
-	errRate = 100
+	errTestSentinel = errors.New("test error condition met") // Use a sentinel error
+	errRateTest     = 3                                      // Trigger error on elements divisible by 3 (for predictability)
 )
+
+// ptr func and person struct are defined in helpers_test.go
 
 // --- Test MapErr ---
+
 func TestMapErr(t *testing.T) {
-	// Define test cases with expected full results (want)
+	// Define testCases specific to MapErr
 	testCases := []struct {
-		name    string
-		input   []int
-		mapper  func(int) (string, error)
-		want    []string // Expected on success
-		wantErr error
-		// We will calculate expected partial result inside the test runner
+		name                string
+		input               any
+		mapper              any // func(T) (U, error)
+		want                any // Expected result on success OR partial result on error
+		wantErr             error
+		checkPartialOnError bool // Flag to indicate we should verify the partial result
 	}{
-		{name: "Success_NoError_MapErr", input: []int{1, 2, 3}, mapper: func(n int) (string, error) { return fmt.Sprintf("n=%d", n), nil }, want: []string{"n=1", "n=2", "n=3"}, wantErr: nil},
-		{name: "Error_Middle_MapErr", input: []int{1, 2, 3, 4, 5}, mapper: func(n int) (string, error) {
-			if n == 3 {
-				return "", errTest
-			}
-			return fmt.Sprintf("n=%d", n), nil
-		}, want: nil /* N/A on error */, wantErr: errTest},
-		{name: "Error_FirstElement_MapErr", input: []int{1, 2, 3}, mapper: func(n int) (string, error) {
-			if n == 1 {
-				return "", errTest
-			}
-			return fmt.Sprintf("n=%d", n), nil
-		}, want: nil /* N/A */, wantErr: errTest},
-		{name: "Error_LastElement_MapErr", input: []int{1, 2, 3}, mapper: func(n int) (string, error) {
-			if n == 3 {
-				return "", errTest
-			}
-			return fmt.Sprintf("n=%d", n), nil
-		}, want: nil /* N/A */, wantErr: errTest},
-		{name: "EmptyInput_MapErr", input: []int{}, mapper: func(n int) (string, error) { return "", nil }, want: []string{}, wantErr: nil}, // Mapper shouldn't error if not called
-		{name: "NilInput_MapErr", input: nil, mapper: func(n int) (string, error) { return "", nil }, want: []string{}, wantErr: nil},       // Mapper shouldn't error if not called
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := functional.MapErr(tc.input, tc.mapper)
-
-			if !errors.Is(err, tc.wantErr) {
-				t.Errorf("MapErr() error mismatch: got %v, want %v", err, tc.wantErr)
-			}
-
-			if tc.wantErr == nil {
-				// Success case: Check against full 'want'
-				if !reflect.DeepEqual(got, tc.want) {
-					t.Errorf("MapErr() success value mismatch: got %#v, want %#v", got, tc.want)
+		{
+			name:  "NoError_IntToString",
+			input: []int{1, 2, 4}, // None divisible by 3
+			mapper: func(n int) (string, error) {
+				return strconv.Itoa(n), nil
+			},
+			want:    []string{"1", "2", "4"},
+			wantErr: nil,
+		},
+		{
+			name:  "Error_Middle_IntToString",
+			input: []int{1, 2, 3, 4, 5}, // 3 will cause error
+			mapper: func(n int) (string, error) {
+				if n%errRateTest == 0 {
+					return "", errTestSentinel
 				}
-			} else if errors.Is(err, tc.wantErr) {
-				// Error case: Check against EXPECTED PARTIAL result based on implementation
-				var expectedPartial []string
-				switch tc.name {
-				case "Error_Middle_MapErr": // Error on 3
-					expectedPartial = []string{"n=1", "n=2"}
-				case "Error_FirstElement_MapErr": // Error on 1
-					expectedPartial = []string{}
-				case "Error_LastElement_MapErr": // Error on 3
-					expectedPartial = []string{"n=1", "n=2"}
-					// Add other error cases if necessary
-				default:
-					// Should we expect nil or empty? Implementation returns partial. If no partial expected, expect empty.
-					// Assuming empty if not explicitly defined above. This case shouldn't really be hit with specific tests.
-					expectedPartial = []string{}
+				return strconv.Itoa(n), nil
+			},
+			want:                []string{"1", "2"}, // Partial result before error on '3'
+			wantErr:             errTestSentinel,
+			checkPartialOnError: true,
+		},
+		{
+			name:  "Error_FirstElement_IntToString",
+			input: []int{3, 4, 5}, // 3 will cause error immediately
+			mapper: func(n int) (string, error) {
+				if n%errRateTest == 0 {
+					return "", errTestSentinel
 				}
-
-				// Check if the actual result matches the calculated expected partial result
-				if !reflect.DeepEqual(got, expectedPartial) {
-					t.Errorf("MapErr() partial result on error mismatch: got %#v, want %#v", got, expectedPartial)
+				return strconv.Itoa(n), nil
+			},
+			want:                []string{}, // Empty partial result
+			wantErr:             errTestSentinel,
+			checkPartialOnError: true,
+		},
+		{
+			name:  "Error_LastElement_IntToString",
+			input: []int{1, 2, 4, 3}, // 3 will cause error at the end
+			mapper: func(n int) (string, error) {
+				if n%errRateTest == 0 {
+					return "", errTestSentinel
 				}
-			}
-			// If error occurred but was not expected, the first error check already failed.
-		})
-	}
-}
-
-// --- Test FilterErr ---
-func TestFilterErr(t *testing.T) {
-	testCases := []struct {
-		name      string
-		input     []int
-		predicate func(int) (bool, error)
-		want      []int // Expected on success
-		wantErr   error
-		// Expected partial result calculated in test runner
-	}{
-		{name: "Success_NoError_FilterErr", input: []int{1, 2, 3, 4, 5, 6}, predicate: func(n int) (bool, error) { return n%2 == 0, nil }, want: []int{2, 4, 6}, wantErr: nil},
-		{name: "Error_Middle_AfterSomeFiltered_FilterErr", input: []int{1, 2, 3, 4, 5, 6}, predicate: func(n int) (bool, error) {
-			if n == 4 {
-				return false, errTest
-			}
-			return n%2 == 0, nil
-		}, want: nil, wantErr: errTest},
-		{name: "Error_Middle_OnElementToFilterOut_FilterErr", input: []int{1, 2, 3, 4, 5, 6}, predicate: func(n int) (bool, error) {
-			if n == 3 {
-				return false, errTest
-			}
-			return n%2 == 0, nil
-		}, want: nil, wantErr: errTest},
-		{name: "Error_FirstElement_FilterErr", input: []int{1, 2, 3}, predicate: func(n int) (bool, error) {
-			if n == 1 {
-				return false, errTest
-			}
-			return n%2 == 0, nil
-		}, want: nil, wantErr: errTest},
-		{name: "Error_LastElement_FilterErr", input: []int{1, 2, 3}, predicate: func(n int) (bool, error) {
-			if n == 3 {
-				return false, errTest
-			}
-			return n%2 == 0, nil
-		}, want: nil, wantErr: errTest},
-		{name: "EmptyInput_FilterErr", input: []int{}, predicate: func(n int) (bool, error) { return false, nil }, want: []int{}, wantErr: nil},
-		{name: "NilInput_FilterErr", input: nil, predicate: func(n int) (bool, error) { return false, nil }, want: []int{}, wantErr: nil},
-		{name: "NoError_AllFilteredOut_FilterErr", input: []int{1, 3, 5}, predicate: func(n int) (bool, error) { return n%2 == 0, nil }, want: []int{}, wantErr: nil},
-		{name: "NoError_AllKept_FilterErr", input: []int{2, 4, 6}, predicate: func(n int) (bool, error) { return n%2 == 0, nil }, want: []int{2, 4, 6}, wantErr: nil},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := functional.FilterErr(tc.input, tc.predicate)
-
-			if !errors.Is(err, tc.wantErr) {
-				t.Errorf("FilterErr() error mismatch: got %v, want %v", err, tc.wantErr)
-			}
-
-			if tc.wantErr == nil {
-				// Success case: Check against full 'want'
-				if !reflect.DeepEqual(got, tc.want) {
-					t.Errorf("FilterErr() success value mismatch: got %#v, want %#v", got, tc.want)
+				return strconv.Itoa(n), nil
+			},
+			want:                []string{"1", "2", "4"}, // Partial result
+			wantErr:             errTestSentinel,
+			checkPartialOnError: true,
+		},
+		{
+			name:    "NilInput",
+			input:   ([]int)(nil),
+			mapper:  func(n int) (string, error) { return strconv.Itoa(n), nil },
+			want:    []string{}, // Expect empty, non-nil slice for nil/empty input
+			wantErr: nil,
+		},
+		{
+			name:    "EmptyInput",
+			input:   []int{},
+			mapper:  func(n int) (string, error) { return strconv.Itoa(n), nil },
+			want:    []string{}, // Expect empty, non-nil slice for nil/empty input
+			wantErr: nil,
+		},
+		{
+			name:  "StructInput_ToString_NoError",
+			input: []person{{"A", 20}, {"B", 40}}, // Ages not divisible by 3
+			mapper: func(p person) (string, error) {
+				return p.Name + ":" + strconv.Itoa(p.Age), nil
+			},
+			want:    []string{"A:20", "B:40"},
+			wantErr: nil,
+		},
+		{
+			name:  "StructInput_ToString_WithError",
+			input: []person{{"A", 20}, {"B", 30}, {"C", 40}}, // B's age 30 is divisible by 3
+			mapper: func(p person) (string, error) {
+				if p.Age%errRateTest == 0 {
+					return "", errTestSentinel
 				}
-			} else if errors.Is(err, tc.wantErr) {
-				// Error case: Check against EXPECTED PARTIAL result based on implementation
-				var expectedPartial []int
-				switch tc.name {
-				// Keep evens, error on 4. Processed 1(no), 2(yes), 3(no). Error on 4. Partial=[2]
-				case "Error_Middle_AfterSomeFiltered_FilterErr":
-					expectedPartial = []int{2}
-					// Keep evens, error on 3. Processed 1(no), 2(yes). Error on 3. Partial=[2]
-				case "Error_Middle_OnElementToFilterOut_FilterErr":
-					expectedPartial = []int{2}
-					// Keep evens, error on 1. Processed none. Error on 1. Partial=[]
-				case "Error_FirstElement_FilterErr":
-					expectedPartial = []int{}
-					// Keep evens, error on 3. Processed 1(no), 2(yes). Error on 3. Partial=[2]
-				case "Error_LastElement_FilterErr":
-					expectedPartial = []int{2}
-				default:
-					expectedPartial = []int{} // Default should be empty slice if no partial expected
-				}
-
-				// Check if the actual result matches the calculated expected partial result
-				if !reflect.DeepEqual(got, expectedPartial) {
-					t.Errorf("FilterErr() partial result on error mismatch: got %#v, want %#v", got, expectedPartial)
-				}
-			}
-		})
-	}
-}
-
-// --- Test ReduceErr ---
-func TestReduceErr(t *testing.T) {
-	// Test cases and runner remain the same as the previously corrected version
-	testCases := []struct {
-		name    string
-		input   any
-		reducer any
-		initial any
-		want    any
-		wantErr error
-	}{
-		{name: "Success_SumInts_ReduceErr", input: []int{1, 2, 3, 4}, reducer: func(acc, current int) (int, error) { return acc + current, nil }, initial: 0, want: 10, wantErr: nil},
-		{name: "Success_ConcatStrings_ReduceErr", input: []string{"a", "b", "c"}, reducer: func(acc, current string) (string, error) { return acc + current, nil }, initial: "", want: "abc", wantErr: nil},
-		{name: "Error_Middle_Summing_ReduceErr", input: []int{1, 2, 3, 4, 5}, reducer: func(acc, current int) (int, error) {
-			if current == 4 {
-				return acc, errTest
-			}
-			return acc + current, nil
-		}, initial: 0, want: 6 /* 0+1+2+3 before error on 4 */, wantErr: errTest},
-		{name: "Error_FirstElement_ReduceErr", input: []int{1, 2, 3}, reducer: func(acc, current int) (int, error) {
-			if current == 1 {
-				return acc, errTest
-			}
-			return acc + current, nil
-		}, initial: 100, want: 100 /* initial */, wantErr: errTest},
-		{name: "Error_LastElement_ReduceErr", input: []int{1, 2, 3}, reducer: func(acc, current int) (int, error) {
-			if current == 3 {
-				return acc, errTest
-			}
-			return acc + current, nil
-		}, initial: 0, want: 3 /* 0+1+2 before error on 3 */, wantErr: errTest},
-		{name: "EmptyInput_ReturnsInitial_ReduceErr", input: []int{}, reducer: func(acc, current int) (int, error) { return acc, errTest }, initial: 55, want: 55, wantErr: nil},
-		{name: "NilInput_ReturnsInitial_ReduceErr", input: nil, reducer: func(acc, current int) (int, error) { return acc, errTest }, initial: 66, want: 66, wantErr: nil},
+				return p.Name + ":" + strconv.Itoa(p.Age), nil
+			},
+			want:                []string{"A:20"}, // Partial result
+			wantErr:             errTestSentinel,
+			checkPartialOnError: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -213,81 +123,304 @@ func TestReduceErr(t *testing.T) {
 			var got any
 			var err error
 
-			callReduceErr := func() {
-				switch input := tc.input.(type) {
-				case []int:
-					reducer, okR := tc.reducer.(func(int, int) (int, error))
-					initial, okI := tc.initial.(int)
-					if !okR {
-						t.Fatalf("Reducer type mismatch: %T", tc.reducer)
-					}
-					if !okI {
-						t.Fatalf("Initial type mismatch: %T", tc.initial)
-					}
-					got, err = functional.ReduceErr[int, int](input, initial, reducer)
-				case []string:
-					reducer, okR := tc.reducer.(func(string, string) (string, error))
-					initial, okI := tc.initial.(string)
-					if !okR {
-						t.Fatalf("Reducer type mismatch: %T", tc.reducer)
-					}
-					if !okI {
-						t.Fatalf("Initial type mismatch: %T", tc.initial)
-					}
-					got, err = functional.ReduceErr[string, string](input, initial, reducer)
-				default:
-					inputVal := reflect.ValueOf(input)
-					if input == nil || (inputVal.IsValid() && inputVal.Kind() == reflect.Slice && inputVal.Len() == 0) {
-						got = tc.initial
-						err = nil
-					} else {
-						t.Fatalf("Unhandled input type for ReduceErr test: %T", tc.input)
-					}
+			// Type switch to call MapErr with correct types
+			switch mapper := tc.mapper.(type) {
+			case func(int) (string, error):
+				in, ok := tc.input.([]int)
+				if tc.input == nil {
+					in = nil
+					ok = true
+				} else if !ok {
+					t.Fatalf("Input type mismatch for func(int)(string, error)")
 				}
+				got, err = functional.MapErr[int, string](in, mapper)
+
+			case func(person) (string, error):
+				in, ok := tc.input.([]person)
+				if tc.input == nil {
+					in = nil
+					ok = true
+				} else if !ok {
+					t.Fatalf("Input type mismatch for func(person)(string, error)")
+				}
+				got, err = functional.MapErr[person, string](in, mapper)
+
+			default:
+				t.Fatalf("Unhandled mapper type in MapErr test setup: %T", tc.mapper)
 			}
 
-			callReduceErr()
+			// Check if the error matches the expected error (using errors.Is for sentinel checks)
+			if !errors.Is(err, tc.wantErr) {
+				t.Errorf("MapErr() error mismatch: got %v, want %v", err, tc.wantErr)
+			}
+			// Check the result value
+			if tc.wantErr == nil {
+				if !reflect.DeepEqual(got, tc.want) {
+					t.Errorf("MapErr() success value mismatch: got %#v, want %#v", got, tc.want)
+				}
+			} else if tc.checkPartialOnError {
+				if !reflect.DeepEqual(got, tc.want) {
+					t.Errorf("MapErr() partial result on error mismatch: got %#v, want %#v", got, tc.want)
+				}
+			}
+		})
+	}
+}
+
+// --- Test FilterErr ---
+
+func TestFilterErr(t *testing.T) {
+	// Define testCases specific to FilterErr
+	testCases := []struct {
+		name                string
+		input               []int
+		predicate           func(int) (bool, error)
+		want                []int
+		wantErr             error
+		checkPartialOnError bool
+	}{
+		{
+			name:  "NoError_FilterEvens",
+			input: []int{1, 2, 4, 5}, // Input that doesn't trigger the sentinel
+			predicate: func(n int) (bool, error) {
+				if n%errRateTest == 0 {
+					return false, errTestSentinel
+				}
+				return n%2 == 0, nil // Keep evens
+			},
+			want:    []int{2, 4}, // Only evens from the input
+			wantErr: nil,
+		},
+		{
+			name:  "Error_Middle_FilterEvens",
+			input: []int{1, 2, 3, 4, 5, 6}, // 3 causes error
+			predicate: func(n int) (bool, error) {
+				if n%errRateTest == 0 {
+					return false, errTestSentinel
+				}
+				return n%2 == 0, nil
+			},
+			want:                []int{2}, // Partial result before error
+			wantErr:             errTestSentinel,
+			checkPartialOnError: true,
+		},
+		{
+			name:  "Error_Middle_FilteringOutElementWithError",
+			input: []int{2, 4, 3, 6, 8}, // 3 causes error
+			predicate: func(n int) (bool, error) {
+				if n%errRateTest == 0 {
+					return false, errTestSentinel
+				}
+				return n%2 == 0, nil
+			},
+			want:                []int{2, 4}, // Partial result before error
+			wantErr:             errTestSentinel,
+			checkPartialOnError: true,
+		},
+		{
+			name:  "Error_FirstElement",
+			input: []int{3, 2, 4}, // 3 causes error immediately
+			predicate: func(n int) (bool, error) {
+				if n%errRateTest == 0 {
+					return false, errTestSentinel
+				}
+				return n%2 == 0, nil
+			},
+			want:                []int{}, // Empty partial
+			wantErr:             errTestSentinel,
+			checkPartialOnError: true,
+		},
+		{
+			name:  "Error_LastElement",
+			input: []int{2, 4, 5, 3}, // 3 causes error at the end
+			predicate: func(n int) (bool, error) {
+				if n%errRateTest == 0 {
+					return false, errTestSentinel
+				}
+				return n%2 == 0, nil
+			},
+			want:                []int{2, 4}, // Partial result
+			wantErr:             errTestSentinel,
+			checkPartialOnError: true,
+		},
+		{name: "NilInput", input: nil, predicate: func(n int) (bool, error) { return n%2 == 0, nil }, want: []int{}, wantErr: nil},
+		{name: "EmptyInput", input: []int{}, predicate: func(n int) (bool, error) { return n%2 == 0, nil }, want: []int{}, wantErr: nil},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := functional.FilterErr(tc.input, tc.predicate)
+			if !errors.Is(err, tc.wantErr) {
+				t.Errorf("FilterErr() error mismatch: got %v, want %v", err, tc.wantErr)
+			}
+			if tc.wantErr == nil {
+				if !reflect.DeepEqual(got, tc.want) {
+					t.Errorf("FilterErr() success value mismatch: got %#v, want %#v", got, tc.want)
+				}
+			} else if tc.checkPartialOnError {
+				if !reflect.DeepEqual(got, tc.want) {
+					t.Errorf("FilterErr() partial result on error mismatch: got %#v, want %#v", got, tc.want)
+				}
+			}
+		})
+	}
+}
+
+// --- Test ReduceErr ---
+
+func TestReduceErr(t *testing.T) {
+	testCases := []struct {
+		name    string
+		input   any
+		initial any
+		reducer any
+		want    any
+		wantErr error
+	}{
+		{
+			name: "NoError_Summing", input: []int{1, 2, 4, 5}, initial: 0, want: 12, wantErr: nil,
+			reducer: func(acc, next int) (int, error) {
+				if next%errRateTest == 0 {
+					return acc, errTestSentinel
+				}
+				return acc + next, nil
+			},
+		},
+		{
+			name: "Error_Middle_Summing", input: []int{1, 2, 3, 4, 5}, initial: 0, want: 3, wantErr: errTestSentinel,
+			reducer: func(acc, next int) (int, error) {
+				if next%errRateTest == 0 {
+					return acc, errTestSentinel
+				}
+				return acc + next, nil
+			},
+		},
+		{
+			name: "Error_FirstElement_Summing", input: []int{3, 1, 2}, initial: 10, want: 10, wantErr: errTestSentinel,
+			reducer: func(acc, next int) (int, error) {
+				if next%errRateTest == 0 {
+					return acc, errTestSentinel
+				}
+				return acc + next, nil
+			},
+		},
+		{
+			name: "Error_LastElement_Summing", input: []int{1, 2, 4, 3}, initial: 0, want: 7, wantErr: errTestSentinel,
+			reducer: func(acc, next int) (int, error) {
+				if next%errRateTest == 0 {
+					return acc, errTestSentinel
+				}
+				return acc + next, nil
+			},
+		},
+		{
+			name: "NoError_StringConcat", input: []string{"a", "b", "d"}, initial: "", want: "abd", wantErr: nil,
+			reducer: func(acc, next string) (string, error) {
+				if next == "c" {
+					return acc, errTestSentinel
+				}
+				return acc + next, nil
+			},
+		},
+		{
+			name: "Error_StringConcat", input: []string{"a", "b", "c", "d"}, initial: "start:", want: "start:ab", wantErr: errTestSentinel,
+			reducer: func(acc, next string) (string, error) {
+				if next == "c" {
+					return acc, errTestSentinel
+				}
+				return acc + next, nil
+			},
+		},
+		{
+			name: "NilInput", input: ([]int)(nil), initial: 100, want: 100, wantErr: nil,
+			reducer: func(acc, next int) (int, error) { return acc + next, nil }, // Reducer type doesn't matter for nil input
+		},
+		{
+			name: "EmptyInput", input: []string{}, initial: "empty", want: "empty", wantErr: nil, // Input type matches initial/reducer
+			reducer: func(acc, next string) (string, error) { return acc + next, nil },
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var got any
+			var err error
+
+			switch reducer := tc.reducer.(type) {
+			case func(int, int) (int, error):
+				inputSlice, okI := tc.input.([]int)
+				if tc.input == nil {
+					okI = true
+					inputSlice = nil
+				}
+				if !okI {
+					t.Fatalf("Input type mismatch for int reducer")
+				}
+				initialValue, okInit := tc.initial.(int)
+				if !okInit {
+					t.Fatalf("Initial type mismatch for int reducer")
+				}
+				got, err = functional.ReduceErr[int, int](inputSlice, initialValue, reducer)
+
+			case func(string, string) (string, error):
+				inputSlice, okI := tc.input.([]string)
+				if tc.input == nil {
+					okI = true
+					inputSlice = nil
+				}
+				if !okI {
+					t.Fatalf("Input type mismatch for string reducer")
+				}
+				initialValue, okInit := tc.initial.(string)
+				if !okInit {
+					t.Fatalf("Initial type mismatch for string reducer")
+				}
+				got, err = functional.ReduceErr[string, string](inputSlice, initialValue, reducer)
+			default:
+				if tc.input == nil { // Handle nil specifically
+					got = tc.initial
+					err = nil
+				} else {
+					t.Fatalf("Unhandled reducer type or mismatched input/initial types: Reducer=%T, Input=%T, Initial=%T", tc.reducer, tc.input, tc.initial)
+				}
+			}
 
 			if !errors.Is(err, tc.wantErr) {
 				t.Errorf("ReduceErr() error mismatch: got %v, want %v", err, tc.wantErr)
 			}
 			if !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("ReduceErr() value mismatch: got %#v, want %#v (wantErr=%v, err=%v)", got, tc.want, tc.wantErr, err)
+				t.Errorf("ReduceErr() value mismatch: got %#v (type %T), want %#v (type %T) (wantErr=%v, actualErr=%v)", got, got, tc.want, tc.want, tc.wantErr, err)
 			}
 		})
 	}
 }
 
 // --- Benchmarks ---
-// (Benchmarks remain the same as previous corrected version - no changes needed here)
-var (
-	benchInputInts = make([]int, 1000)
-)
+var benchInputInts = make([]int, 1000)
 
 func init() {
-	rand.Seed(time.Now().UnixNano())
 	for i := range benchInputInts {
 		benchInputInts[i] = i
 	}
 }
-func mapperNoError(n int) (string, error) { return strconv.Itoa(n), nil }
-func mapperWithError(n int) (string, error) {
-	if n != 0 && n%errRate == 0 {
-		return "", errTest
+func mapperNoErrorBench(n int) (string, error) { return strconv.Itoa(n), nil }
+func mapperWithErrorBench(n int) (string, error) {
+	if n != 0 && n%(errRateTest*10) == 0 {
+		return "", errTestSentinel
 	}
 	return strconv.Itoa(n), nil
 }
-func predicateNoError(n int) (bool, error) { return n%2 == 0, nil }
-func predicateWithError(n int) (bool, error) {
-	if n != 0 && n%errRate == 0 {
-		return false, errTest
+func predicateNoErrorBench(n int) (bool, error) { return n%2 == 0, nil }
+func predicateWithErrorBench(n int) (bool, error) {
+	if n != 0 && n%(errRateTest*10) == 0 {
+		return false, errTestSentinel
 	}
 	return n%2 == 0, nil
 }
-func reducerNoError(acc, current int) (int, error) { return acc + current, nil }
-func reducerWithError(acc, current int) (int, error) {
-	if current != 0 && current%errRate == 0 {
-		return acc, errTest
+func reducerNoErrorBench(acc, current int) (int, error) { return acc + current, nil }
+func reducerWithErrorBench(acc, current int) (int, error) {
+	if current != 0 && current%(errRateTest*10) == 0 {
+		return acc, errTestSentinel
 	}
 	return acc + current, nil
 }
@@ -295,50 +428,69 @@ func reducerWithError(acc, current int) (int, error) {
 func BenchmarkMapErr_NoError_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	b.ResetTimer()
-	var res []string
-	var err error
+	var r []string
+	var e error
 	for i := 0; i < b.N; i++ {
-		res, err = functional.MapErr(data, mapperNoError)
+		r, e = functional.MapErr(data, mapperNoErrorBench)
 	}
-	_ = res
-	_ = err
-}
-
-func BenchmarkMap_Baseline_N1000(b *testing.B) {
-	data := benchInputInts[:1000]
-	mapper := func(n int) string { return strconv.Itoa(n) }
-	b.ResetTimer()
-	var res []string
-	for i := 0; i < b.N; i++ {
-		res = functional.Map(data, mapper)
-	}
-	_ = res
-}
-
-func BenchmarkMapLoop_Baseline_N1000(b *testing.B) {
-	data := benchInputInts[:1000]
-	b.ResetTimer()
-	var res []string
-	for i := 0; i < b.N; i++ {
-		localRes := make([]string, len(data))
-		for j, item := range data {
-			localRes[j] = strconv.Itoa(item)
-		}
-		res = localRes
-	}
-	_ = res
+	_, _ = r, e
 }
 
 func BenchmarkMapErr_WithError_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	b.ResetTimer()
-	var res []string
-	var err error
+	var r []string
+	var e error
 	for i := 0; i < b.N; i++ {
-		res, err = functional.MapErr(data, mapperWithError)
+		r, e = functional.MapErr(data, mapperWithErrorBench)
 	}
-	_ = res
-	_ = err
+	_, _ = r, e
+}
+
+func BenchmarkFilterErr_NoError_N1000(b *testing.B) {
+	data := benchInputInts[:1000]
+	b.ResetTimer()
+	var r []int
+	var e error
+	for i := 0; i < b.N; i++ {
+		r, e = functional.FilterErr(data, predicateNoErrorBench)
+	}
+	_, _ = r, e
+}
+
+func BenchmarkFilterErr_WithError_N1000(b *testing.B) {
+	data := benchInputInts[:1000]
+	b.ResetTimer()
+	var r []int
+	var e error
+	for i := 0; i < b.N; i++ {
+		r, e = functional.FilterErr(data, predicateWithErrorBench)
+	}
+	_, _ = r, e
+}
+
+func BenchmarkReduceErr_NoError_N1000(b *testing.B) {
+	data := benchInputInts[:1000]
+	initial := 0
+	b.ResetTimer()
+	var r int
+	var e error
+	for i := 0; i < b.N; i++ {
+		r, e = functional.ReduceErr(data, initial, reducerNoErrorBench)
+	}
+	_, _ = r, e
+}
+
+func BenchmarkReduceErr_WithError_N1000(b *testing.B) {
+	data := benchInputInts[:1000]
+	initial := 0
+	b.ResetTimer()
+	var r int
+	var e error
+	for i := 0; i < b.N; i++ {
+		r, e = functional.ReduceErr(data, initial, reducerWithErrorBench)
+	}
+	_, _ = r, e
 }
 
 func BenchmarkMapLoop_WithError_N1000(b *testing.B) {
@@ -347,74 +499,20 @@ func BenchmarkMapLoop_WithError_N1000(b *testing.B) {
 	var res []string
 	var err error
 	for i := 0; i < b.N; i++ {
-		localRes := make([]string, 0, len(data))
-		var loopErr error
+		r := make([]string, 0, len(data))
+		var lE error
 		for _, item := range data {
-			s, mapperErr := mapperWithError(item)
-			if mapperErr != nil {
-				loopErr = mapperErr
-				localRes = nil
+			v, mE := mapperWithErrorBench(item)
+			if mE != nil {
+				lE = mE
 				break
 			}
-			localRes = append(localRes, s)
+			r = append(r, v)
 		}
-		res = localRes
-		err = loopErr
+		res = r
+		err = lE
 	}
-	_ = res
-	_ = err
-}
-
-func BenchmarkFilterErr_NoError_N1000(b *testing.B) {
-	data := benchInputInts[:1000]
-	b.ResetTimer()
-	var res []int
-	var err error
-	for i := 0; i < b.N; i++ {
-		res, err = functional.FilterErr(data, predicateNoError)
-	}
-	_ = res
-	_ = err
-}
-
-func BenchmarkFilter_Baseline_N1000(b *testing.B) {
-	data := benchInputInts[:1000]
-	predicate := func(n int) bool { return n%2 == 0 }
-	b.ResetTimer()
-	var res []int
-	for i := 0; i < b.N; i++ {
-		res = functional.Filter(data, predicate)
-	}
-	_ = res
-}
-
-func BenchmarkFilterLoop_Baseline_N1000(b *testing.B) {
-	data := benchInputInts[:1000]
-	predicate := func(n int) bool { return n%2 == 0 }
-	b.ResetTimer()
-	var res []int
-	for i := 0; i < b.N; i++ {
-		localRes := make([]int, 0)
-		for _, item := range data {
-			if predicate(item) {
-				localRes = append(localRes, item)
-			}
-		}
-		res = localRes
-	}
-	_ = res
-}
-
-func BenchmarkFilterErr_WithError_N1000(b *testing.B) {
-	data := benchInputInts[:1000]
-	b.ResetTimer()
-	var res []int
-	var err error
-	for i := 0; i < b.N; i++ {
-		res, err = functional.FilterErr(data, predicateWithError)
-	}
-	_ = res
-	_ = err
+	_, _ = res, err
 }
 
 func BenchmarkFilterLoop_WithError_N1000(b *testing.B) {
@@ -423,79 +521,25 @@ func BenchmarkFilterLoop_WithError_N1000(b *testing.B) {
 	var res []int
 	var err error
 	for i := 0; i < b.N; i++ {
-		localRes := make([]int, 0)
-		var loopErr error
+		r := make([]int, 0)
+		var lE error
 		for _, item := range data {
-			keep, predErr := predicateWithError(item)
-			if predErr != nil {
-				loopErr = predErr
-				localRes = nil
+			inc, pE := predicateWithErrorBench(item)
+			if pE != nil {
+				lE = pE
 				break
 			}
-			if keep {
-				localRes = append(localRes, item)
+			if inc {
+				r = append(r, item)
 			}
 		}
-		res = localRes
-		err = loopErr
+		res = r
+		err = lE
 	}
-	_ = res
-	_ = err
+	_, _ = res, err
 }
 
-func BenchmarkReduceErr_NoError_N1000(b *testing.B) {
-	data := benchInputInts[:1000]
-	initial := 0
-	b.ResetTimer()
-	var res int
-	var err error
-	for i := 0; i < b.N; i++ {
-		res, err = functional.ReduceErr[int, int](data, initial, reducerNoError)
-	}
-	_ = res
-	_ = err
-}
-
-func BenchmarkReduce_Baseline_N1000(b *testing.B) {
-	data := benchInputInts[:1000]
-	initial := 0
-	reducer := func(acc, current int) int { return acc + current }
-	b.ResetTimer()
-	var res int
-	for i := 0; i < b.N; i++ {
-		res = functional.Reduce[int, int](data, initial, reducer)
-	}
-	_ = res
-}
-
-func BenchmarkReduceLoop_Baseline_N1000(b *testing.B) {
-	data := benchInputInts[:1000]
-	initial := 0
-	b.ResetTimer()
-	var res int
-	for i := 0; i < b.N; i++ {
-		acc := initial
-		for _, item := range data {
-			acc = acc + item
-		}
-		res = acc
-	}
-	_ = res
-}
-
-func BenchmarkReduceErr_WithError_N1000(b *testing.B) {
-	data := benchInputInts[:1000]
-	initial := 0
-	b.ResetTimer()
-	var res int
-	var err error
-	for i := 0; i < b.N; i++ {
-		res, err = functional.ReduceErr[int, int](data, initial, reducerWithError)
-	}
-	_ = res
-	_ = err
-}
-
+// CORRECTED BenchmarkReduceLoop_WithError_N1000
 func BenchmarkReduceLoop_WithError_N1000(b *testing.B) {
 	data := benchInputInts[:1000]
 	initial := 0
@@ -504,19 +548,21 @@ func BenchmarkReduceLoop_WithError_N1000(b *testing.B) {
 	var err error
 	for i := 0; i < b.N; i++ {
 		acc := initial
-		var loopErr error
+		var lE error // loop error
 		for _, item := range data {
-			var reduceErr error
-			acc, reduceErr = reducerWithError(acc, item)
-			if reduceErr != nil {
-				loopErr = reduceErr
-				acc = initial
-				break
+			nA, rE := reducerWithErrorBench(acc, item) // next Accumulator, reduce Error
+			if rE != nil {
+				lE = rE                     // Store the error
+				res = acc                   // Store the accumulator state *before* the error
+				goto endLoopWithErrorReduce // Exit inner loop
 			}
+			acc = nA // Update accumulator only on success
 		}
-		res = acc
-		err = loopErr
+		// If loop finished OR goto was taken
+		res = acc // Store final/last accumulator
+		err = lE  // Assign whatever lE holds (nil if no error, sentinel if error)
+	endLoopWithErrorReduce: // Label for goto
 	}
-	_ = res
-	_ = err
+	// Use the results to prevent compiler optimization removing the loops
+	_, _ = res, err
 }

@@ -1,44 +1,41 @@
-// Package functional provides generic functional programming utilities.
 package functional
 
-// First returns a pointer to the first element in a slice and a boolean indicating success.
+// First returns a pointer to the first element of a slice.
+// It returns a nil pointer and false if the slice is nil or empty.
 //
-// Type Parameters:
+// Args:
 //
-//	T: The type of elements in the input slice.
-//
-// Parameters:
-//
-//	slice: The slice to get the first element from. Can be nil or empty.
+//	slice []T: The input slice.
 //
 // Returns:
 //
-//	*T: A pointer to the first element if the slice is not empty.
-//	bool: true if an element was found, false if the slice is nil or empty.
+//	 *T: A pointer to the first element, or nil.
+//		bool: True if an element was found, false otherwise.
 func First[T any](slice []T) (*T, bool) {
 	if len(slice) == 0 {
+		// Explicitly return typed nil pointer for consistency if needed,
+		// though 'nil' often suffices. Return false for 'ok'.
 		return nil, false
 	}
+	// Return pointer to the first element and true for 'ok'.
 	return &slice[0], true
 }
 
-// Last returns a pointer to the last element in a slice and a boolean indicating success.
+// Last returns a pointer to the last element of a slice.
+// It returns a nil pointer and false if the slice is nil or empty.
 //
-// Type Parameters:
+// Args:
 //
-//	T: The type of elements in the input slice.
-//
-// Parameters:
-//
-//	slice: The slice to get the last element from. Can be nil or empty.
+//	slice []T: The input slice.
 //
 // Returns:
 //
-//	*T: A pointer to the last element if the slice is not empty.
-//	bool: true if an element was found, false if the slice is nil or empty.
+//	 *T: A pointer to the last element, or nil.
+//		bool: True if an element was found, false otherwise.
 func Last[T any](slice []T) (*T, bool) {
 	if len(slice) == 0 {
 		return nil, false
 	}
+	// Return pointer to the last element and true for 'ok'.
 	return &slice[len(slice)-1], true
 }

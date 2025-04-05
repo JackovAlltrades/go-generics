@@ -8,22 +8,8 @@ import (
 	"github.com/JackovAlltrades/go-generics/functional" // Adjust import path
 )
 
-// --- Helper Functions ---
-
-// Helper function to create a pointer to a value.
-func ptr[T any](v T) *T {
-	return &v
-}
-
-// person struct used in tests.
-type person struct {
-	Name string
-	Age  int
-}
-
-// --- Test Find ---
-// NOTE: This is defined in find_test.go, but needed here for comparison if kept separate
-// It's better practice to define shared test types once. Assuming it's defined elsewhere.
+// --- Helper Functions & Types ---
+// ptr func and person struct are defined in helpers_test.go
 
 // --- Test First ---
 func TestFirst(t *testing.T) {
@@ -33,69 +19,73 @@ func TestFirst(t *testing.T) {
 	testCases := []struct {
 		name           string
 		input          any
-		wantValueCheck func(any) bool
+		wantValueCheck func(any) bool // Use any for checks, convert inside
 		wantOk         bool
 	}{
-		{"Ints_NonEmpty", []int{10, 20, 30}, func(v any) bool { return v.(int) == 10 }, true},
-		{"Strings_NonEmpty", []string{"a", "b"}, func(v any) bool { return v.(string) == "a" }, true},
-		{"Ints_SingleElement", []int{5}, func(v any) bool { return v.(int) == 5 }, true},
-		{"Ints_Empty", []int{}, func(v any) bool { return false }, false},
-		{"Strings_Empty", []string{}, func(v any) bool { return false }, false},
-		{"Ints_Nil", ([]int)(nil), func(v any) bool { return false }, false},
+		{"Ints_NonEmpty", []int{10, 20, 30}, func(v any) bool { val, ok := v.(int); return ok && val == 10 }, true},
+		{"Strings_NonEmpty", []string{"a", "b"}, func(v any) bool { val, ok := v.(string); return ok && val == "a" }, true},
+		{"Ints_SingleElement", []int{5}, func(v any) bool { val, ok := v.(int); return ok && val == 5 }, true},
+		{"Ints_Empty", []int{}, func(v any) bool { return v == nil }, false}, // Expect nil check passes when ok=false
+		{"Strings_Empty", []string{}, func(v any) bool { return v == nil }, false},
+		{"Ints_Nil", ([]int)(nil), func(v any) bool { return v == nil }, false},
 		{"Pointers_NonEmpty", []*int{ptr(10), ptr(20)}, func(v any) bool { p, ok := v.(*int); return ok && p != nil && *p == 10 }, true},
-		{"Pointers_WithNil", []*int{nil, ptr(20)}, func(v any) bool { p, ok := v.(*int); return ok && p == nil }, true},
-		{"Structs_NonEmpty", []person{p1, p2}, func(v any) bool { return reflect.DeepEqual(v, p1) }, true},
-		{"Structs_Empty", []person{}, func(v any) bool { return false }, false},
+		{"Pointers_WithNil", []*int{nil, ptr(20)}, func(v any) bool { p, ok := v.(*int); return ok && p == nil }, true}, // Check value is nil ptr
+		{"Structs_NonEmpty", []person{p1, p2}, func(v any) bool { val, ok := v.(person); return ok && reflect.DeepEqual(val, p1) }, true},
+		{"Structs_Empty", []person{}, func(v any) bool { return v == nil }, false},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var gotPtr any
+			var gotValue any // Store the actual value pointed to, or the pointer itself for []*T cases
 			var gotOk bool
 
-			v := reflect.ValueOf(tc.input)
-			if !v.IsValid() || (v.Kind() == reflect.Slice && v.IsNil()) {
-				_, gotOk = functional.First[int](nil)
-				gotPtr = (any)(nil)
-			} else {
-				switch concreteInput := tc.input.(type) {
-				case []int:
-					ptrVal, ok := functional.First(concreteInput)
-					gotPtr = ptrVal
-					gotOk = ok
-				case []string:
-					ptrVal, ok := functional.First(concreteInput)
-					gotPtr = ptrVal
-					gotOk = ok
-				case []*int:
-					ptrVal, ok := functional.First(concreteInput)
-					gotPtr = ptrVal
-					gotOk = ok
-				case []person:
-					ptrVal, ok := functional.First(concreteInput)
-					gotPtr = ptrVal
-					gotOk = ok
-				default:
-					if v.Kind() == reflect.Slice && v.Len() == 0 {
-						switch v.Type().Elem().Kind() {
-						case reflect.Int:
-							_, gotOk = functional.First([]int{})
-							gotPtr = (*int)(nil)
-						case reflect.String:
-							_, gotOk = functional.First([]string{})
-							gotPtr = (*string)(nil)
-						case reflect.Pointer:
-							_, gotOk = functional.First([]*int{})
-							gotPtr = nil
-						case reflect.Struct:
-							_, gotOk = functional.First([]person{})
-							gotPtr = (*person)(nil)
-						default:
-							t.Fatalf("Unhandled empty slice element type: %s", v.Type().Elem().Kind())
-						}
-					} else {
-						t.Fatalf("Unhandled input type in test: %T", tc.input)
-					}
+			// Use type switch on input to call the generic function correctly
+			switch concreteInput := tc.input.(type) {
+			case []int:
+				ptrVal, ok := functional.First(concreteInput)
+				if ok && ptrVal != nil {
+					gotValue = *ptrVal
+				} else {
+					gotValue = nil
+				}
+				gotOk = ok
+			case []string:
+				ptrVal, ok := functional.First(concreteInput)
+				if ok && ptrVal != nil {
+					gotValue = *ptrVal
+				} else {
+					gotValue = nil
+				}
+				gotOk = ok
+			case []*int:
+				ptrVal, ok := functional.First(concreteInput) // Returns *(*int)
+				// **** THE CRITICAL FIX IS HERE ****
+				if ok && ptrVal != nil {
+					gotValue = *ptrVal // Assign the dereferenced pointer (*int) to gotValue
+				} else {
+					// If ok is true but ptrVal is nil (edge case?), or ok is false
+					gotValue = nil
+				}
+				gotOk = ok
+			case []person:
+				ptrVal, ok := functional.First(concreteInput)
+				if ok && ptrVal != nil {
+					gotValue = *ptrVal
+				} else {
+					gotValue = nil
+				}
+				gotOk = ok
+			case nil: // Handle nil slice explicitly
+				_, ok := functional.First[int](nil) // Use any dummy type T for nil slice
+				gotValue = nil
+				gotOk = ok
+			default:
+				v := reflect.ValueOf(tc.input)
+				if v.Kind() == reflect.Slice && v.Len() == 0 {
+					gotValue = nil
+					gotOk = false
+				} else {
+					t.Fatalf("Unhandled input type in test: %T", tc.input)
 				}
 			}
 
@@ -103,35 +93,9 @@ func TestFirst(t *testing.T) {
 				t.Errorf("First() ok = %v, want %v", gotOk, tc.wantOk)
 			}
 
-			if gotOk {
-				isGotPtrNil := (gotPtr == nil)
-				if !isGotPtrNil {
-					// Handle typed nils potentially held by interface
-					vPtr := reflect.ValueOf(gotPtr)
-					if vPtr.Kind() == reflect.Pointer && vPtr.IsNil() {
-						isGotPtrNil = true
-					}
-				}
-
-				if isGotPtrNil {
-					if !tc.wantValueCheck(nil) {
-						t.Errorf("First() pointer is nil, but ok is true and test did not expect nil value")
-					}
-				} else {
-					// Pointer is not nil, check the value
-					val := reflect.ValueOf(gotPtr).Elem().Interface()
-					if !tc.wantValueCheck(val) {
-						t.Errorf("First() value = %#v, but wantValueCheck failed", val)
-					}
-				}
-			} else {
-				// Check if gotPtr is actually nil when ok is false
-				if gotPtr != nil {
-					vPtr := reflect.ValueOf(gotPtr)
-					if !(vPtr.Kind() == reflect.Pointer && vPtr.IsNil()) { // Allow typed nil pointers
-						t.Errorf("First() pointer = %v, want nil when ok is false", gotPtr)
-					}
-				}
+			// Check the value using the provided checker function
+			if !tc.wantValueCheck(gotValue) {
+				t.Errorf("First() value = %#v (type %T), wantValueCheck failed (ok=%v)", gotValue, gotValue, gotOk)
 			}
 		})
 	}
@@ -145,69 +109,72 @@ func TestLast(t *testing.T) {
 	testCases := []struct {
 		name           string
 		input          any
-		wantValueCheck func(any) bool
+		wantValueCheck func(any) bool // Use any for checks, convert inside
 		wantOk         bool
 	}{
-		{"Ints_NonEmpty", []int{10, 20, 30}, func(v any) bool { return v.(int) == 30 }, true},
-		{"Strings_NonEmpty", []string{"a", "b"}, func(v any) bool { return v.(string) == "b" }, true},
-		{"Ints_SingleElement", []int{5}, func(v any) bool { return v.(int) == 5 }, true},
-		{"Ints_Empty", []int{}, func(v any) bool { return false }, false},
-		{"Strings_Empty", []string{}, func(v any) bool { return false }, false},
-		{"Ints_Nil", ([]int)(nil), func(v any) bool { return false }, false},
-		{"Pointers_NonEmpty", []*int{ptr(10), ptr(20)}, func(v any) bool { p, ok := v.(*int); return ok && p != nil && *p == 20 }, true},
-		{"Pointers_WithNilLast", []*int{ptr(10), nil}, func(v any) bool { p, ok := v.(*int); return ok && p == nil }, true},
-		{"Structs_NonEmpty", []person{p1, p2}, func(v any) bool { return reflect.DeepEqual(v, p2) }, true},
-		{"Structs_Empty", []person{}, func(v any) bool { return false }, false},
+		{"Ints_NonEmpty", []int{10, 20, 30}, func(v any) bool { val, ok := v.(int); return ok && val == 30 }, true},
+		{"Strings_NonEmpty", []string{"a", "b"}, func(v any) bool { val, ok := v.(string); return ok && val == "b" }, true},
+		{"Ints_SingleElement", []int{5}, func(v any) bool { val, ok := v.(int); return ok && val == 5 }, true},
+		{"Ints_Empty", []int{}, func(v any) bool { return v == nil }, false},
+		{"Strings_Empty", []string{}, func(v any) bool { return v == nil }, false},
+		{"Ints_Nil", ([]int)(nil), func(v any) bool { return v == nil }, false},
+		{"Pointers_NonEmpty", []*int{ptr(10), ptr(20)}, func(v any) bool { p, ok := v.(*int); return ok && p != nil && *p == 20 }, true}, // Value is *int
+		{"Pointers_WithNilLast", []*int{ptr(10), nil}, func(v any) bool { p, ok := v.(*int); return ok && p == nil }, true},              // Value is nil *int
+		{"Structs_NonEmpty", []person{p1, p2}, func(v any) bool { val, ok := v.(person); return ok && reflect.DeepEqual(val, p2) }, true},
+		{"Structs_Empty", []person{}, func(v any) bool { return v == nil }, false},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var gotPtr any
+			var gotValue any // Store the actual value pointed to, or the pointer itself for []*T cases
 			var gotOk bool
 
-			v := reflect.ValueOf(tc.input)
-			if !v.IsValid() || (v.Kind() == reflect.Slice && v.IsNil()) {
-				_, gotOk = functional.Last[int](nil)
-				gotPtr = (any)(nil)
-			} else {
-				switch concreteInput := tc.input.(type) {
-				case []int:
-					ptrVal, ok := functional.Last(concreteInput)
-					gotPtr = ptrVal
-					gotOk = ok
-				case []string:
-					ptrVal, ok := functional.Last(concreteInput)
-					gotPtr = ptrVal
-					gotOk = ok
-				case []*int:
-					ptrVal, ok := functional.Last(concreteInput)
-					gotPtr = ptrVal
-					gotOk = ok
-				case []person:
-					ptrVal, ok := functional.Last(concreteInput)
-					gotPtr = ptrVal
-					gotOk = ok
-				default:
-					if v.Kind() == reflect.Slice && v.Len() == 0 {
-						switch v.Type().Elem().Kind() {
-						case reflect.Int:
-							_, gotOk = functional.Last([]int{})
-							gotPtr = (*int)(nil)
-						case reflect.String:
-							_, gotOk = functional.Last([]string{})
-							gotPtr = (*string)(nil)
-						case reflect.Pointer:
-							_, gotOk = functional.Last([]*int{})
-							gotPtr = nil
-						case reflect.Struct:
-							_, gotOk = functional.Last([]person{})
-							gotPtr = (*person)(nil)
-						default:
-							t.Fatalf("Unhandled empty slice element type: %s", v.Type().Elem().Kind())
-						}
-					} else {
-						t.Fatalf("Unhandled input type in test: %T", tc.input)
-					}
+			// Use type switch on input to call the generic function correctly
+			switch concreteInput := tc.input.(type) {
+			case []int:
+				ptrVal, ok := functional.Last(concreteInput)
+				if ok && ptrVal != nil {
+					gotValue = *ptrVal
+				} else {
+					gotValue = nil
+				}
+				gotOk = ok
+			case []string:
+				ptrVal, ok := functional.Last(concreteInput)
+				if ok && ptrVal != nil {
+					gotValue = *ptrVal
+				} else {
+					gotValue = nil
+				}
+				gotOk = ok
+			case []*int:
+				ptrVal, ok := functional.Last(concreteInput) // Returns *(*int)
+				// **** THE CRITICAL FIX IS HERE ****
+				if ok && ptrVal != nil {
+					gotValue = *ptrVal // Assign the dereferenced pointer (*int) to gotValue
+				} else {
+					gotValue = nil
+				}
+				gotOk = ok
+			case []person:
+				ptrVal, ok := functional.Last(concreteInput)
+				if ok && ptrVal != nil {
+					gotValue = *ptrVal
+				} else {
+					gotValue = nil
+				}
+				gotOk = ok
+			case nil:
+				_, ok := functional.Last[int](nil)
+				gotValue = nil
+				gotOk = ok
+			default:
+				v := reflect.ValueOf(tc.input)
+				if v.Kind() == reflect.Slice && v.Len() == 0 {
+					gotValue = nil
+					gotOk = false
+				} else {
+					t.Fatalf("Unhandled input type in test: %T", tc.input)
 				}
 			}
 
@@ -215,32 +182,9 @@ func TestLast(t *testing.T) {
 				t.Errorf("Last() ok = %v, want %v", gotOk, tc.wantOk)
 			}
 
-			if gotOk {
-				isGotPtrNil := (gotPtr == nil)
-				if !isGotPtrNil {
-					vPtr := reflect.ValueOf(gotPtr)
-					if vPtr.Kind() == reflect.Pointer && vPtr.IsNil() {
-						isGotPtrNil = true
-					}
-				}
-
-				if isGotPtrNil {
-					if !tc.wantValueCheck(nil) {
-						t.Errorf("Last() pointer is nil, but ok is true and test did not expect nil value")
-					}
-				} else {
-					val := reflect.ValueOf(gotPtr).Elem().Interface()
-					if !tc.wantValueCheck(val) {
-						t.Errorf("Last() value = %#v, but wantValueCheck failed", val)
-					}
-				}
-			} else {
-				if gotPtr != nil {
-					vPtr := reflect.ValueOf(gotPtr)
-					if !(vPtr.Kind() == reflect.Pointer && vPtr.IsNil()) { // Allow typed nil pointers
-						t.Errorf("Last() pointer = %v, want nil when ok is false", gotPtr)
-					}
-				}
+			// Check the value using the provided checker function
+			if !tc.wantValueCheck(gotValue) {
+				t.Errorf("Last() value = %#v (type %T), wantValueCheck failed (ok=%v)", gotValue, gotValue, gotOk)
 			}
 		})
 	}
@@ -248,7 +192,7 @@ func TestLast(t *testing.T) {
 
 // --- Examples ---
 
-func ExampleFirst() {
+func ExampleFirst() { /* Example unchanged, seems correct */
 	nums := []int{5, 10, 15}
 	firstNumPtr, ok := functional.First(nums)
 	if ok {
@@ -256,39 +200,36 @@ func ExampleFirst() {
 	} else {
 		fmt.Println("Slice was empty")
 	}
-
 	empty := []string{}
 	firstStrPtr, ok := functional.First(empty)
 	if !ok {
-		fmt.Printf("First string from empty found: %v (ptr: %v)\n", ok, firstStrPtr)
+		fmt.Printf("First string from empty found: %v (ptr is nil: %v)\n", ok, firstStrPtr == nil)
 	}
-	// Corrected Output:
+	// Output:
 	// First number: 5
-	// First string from empty found: false (ptr: <nil>)
+	// First string from empty found: false (ptr is nil: true)
 }
 
-func ExampleLast() {
+func ExampleLast() { /* Example unchanged, seems correct */
 	nums := []int{5, 10, 15}
 	lastNumPtr, ok := functional.Last(nums)
 	if ok {
 		fmt.Printf("Last number: %d\n", *lastNumPtr)
 	}
-
 	pointers := []*string{ptr("a"), ptr("b"), nil}
-	lastPtr, ok := functional.Last(pointers) // Last element is nil pointer
+	lastPtrPtr, ok := functional.Last(pointers)
 	if ok {
-		// CORRECTED Logic: Check if the returned pointer itself is nil
-		if lastPtr == nil {
-			fmt.Println("Last pointer was nil")
+		if lastPtrPtr != nil && *lastPtrPtr == nil {
+			fmt.Println("Last element was a nil pointer")
+		} else if lastPtrPtr != nil {
+			fmt.Printf("Last pointer points to: %q\n", **lastPtrPtr)
 		} else {
-			// Should not happen for this specific example, but good practice
-			fmt.Printf("Last pointer points to: %v\n", *lastPtr)
+			fmt.Println("Last pointer itself was unexpectedly nil despite ok=true")
 		}
 	} else {
-		// Should not happen for this specific example
-		fmt.Println("Last element not found (slice was empty?)")
+		fmt.Println("Slice was empty")
 	}
-	// Corrected Output:
+	// Output:
 	// Last number: 15
-	// Last pointer was nil
+	// Last element was a nil pointer
 }

@@ -105,7 +105,7 @@ func Values[K comparable, V any](inputMap map[K]V) []V {
 //
 //	[]R: A slice containing the results of applying fn to each key-value pair.
 //	     Returns an empty slice if the input map is nil or empty. Order is not guaranteed.
-func MapToSlice[K comparable, V any, R any](inputMap map[K]V, fn func(k K, v V) R) []R {
+func MapToSlice[K comparable, V, R any](inputMap map[K]V, fn func(k K, v V) R) []R {
 	if inputMap == nil {
 		return []R{}
 	}

@@ -414,7 +414,7 @@ func ExampleUnique() {
 }
 
 // --- Benchmarks for Unique ---
-func generateIntSliceWithDuplicates(size int, uniqueRatio int) []int {
+func generateIntSliceWithDuplicates(size, uniqueRatio int) []int {
 	if size == 0 {
 		return []int{}
 	}

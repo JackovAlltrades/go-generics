@@ -1,89 +1,71 @@
 package functional
 
-// Import necessary packages. 'cmp' is removed as it's no longer needed by Union.
-// 'sort' might be used by other functions or internally, keep for now if needed elsewhere.
-// Consider removing 'sort' if no function in this *file* uses it directly.
-// Keep ONLY if Intersection/Difference/Unique implementations happen to use it internally
-
-// Intersection returns a new slice containing elements that are present
-// in *both* input slices (s1 and s2). The order of elements in the result
-// corresponds to their first appearance in the first slice (s1).
-// Duplicates within each input slice are effectively ignored; the result contains
-// each unique common element only once.
+// Intersection returns a new slice containing elements present in both s1 and s2.
+// It requires the element type T to be comparable. The result contains unique elements.
+// The order of elements in the result is not guaranteed.
 //
-// Type Parameters:
+// Args:
 //
-//	T: The type of elements in the slices. Must be comparable.
-//
-// Parameters:
-//
-//	s1: The first input slice.
-//	s2: The second input slice.
+//	s1 ([]T): The first input slice.
+//	s2 ([]T): The second input slice.
 //
 // Returns:
 //
-//	[]T: A new slice containing the unique elements present in both s1 and s2,
-//	     in the order of their first appearance in s1.
-//	     Returns an empty slice ([]T{}) if either input is nil/empty, or if
-//	     there is no intersection.
+//	[]T: A slice containing the common unique elements. Returns an empty slice if no common elements or if inputs are nil/empty.
 func Intersection[T comparable](s1, s2 []T) []T {
 	if len(s1) == 0 || len(s2) == 0 {
 		return []T{}
 	}
 
-	s2Set := make(map[T]struct{}, len(s2))
-	for _, v := range s2 {
-		s2Set[v] = struct{}{}
+	// Build map from the smaller slice for potentially better performance
+	var mapSlice, iterateSlice []T
+	if len(s1) < len(s2) {
+		mapSlice = s1
+		iterateSlice = s2
+	} else {
+		mapSlice = s2
+		iterateSlice = s1
 	}
 
-	// Using min() requires Go 1.21+. If targeting older versions, implement min manually.
-	// Or simply use len(s1) as upper bound.
-	addedSetCapacity := len(s1)     // Default capacity
-	if len(s2) < addedSetCapacity { // Estimate based on smaller potential intersection size
-		addedSetCapacity = len(s2)
+	set := make(map[T]struct{}, len(mapSlice))
+	for _, item := range mapSlice {
+		set[item] = struct{}{}
 	}
-	addedSet := make(map[T]struct{}, addedSetCapacity)
-	result := make([]T, 0)
 
-	for _, v := range s1 {
-		_, existsInS2 := s2Set[v]
-		_, alreadyAdded := addedSet[v]
-
-		if existsInS2 && !alreadyAdded {
-			result = append(result, v)
-			addedSet[v] = struct{}{}
+	intersectionMap := make(map[T]struct{}) // To store unique intersection results
+	for _, item := range iterateSlice {
+		if _, exists := set[item]; exists {
+			intersectionMap[item] = struct{}{}
 		}
+	}
+
+	if len(intersectionMap) == 0 {
+		return []T{}
+	}
+
+	result := make([]T, 0, len(intersectionMap))
+	for k := range intersectionMap {
+		result = append(result, k)
 	}
 	return result
 }
 
-// Union returns a new slice containing the unique elements present in
-// *either* of the input slices (s1 or s2).
-// The order of elements in the returned slice is not guaranteed.
+// Union returns a new slice containing unique elements from both s1 and s2.
+// It requires the element type T to be comparable.
+// The order of elements in the result is not guaranteed.
 //
-// Type Parameters:
+// Args:
 //
-//	T: The type of elements in the slices. Must be comparable. // CORRECTED constraint
-//
-// Parameters:
-//
-//	s1: The first input slice.
-//	s2: The second input slice.
+//	s1 ([]T): The first input slice. Can be nil or empty.
+//	s2 ([]T): The second input slice. Can be nil or empty.
 //
 // Returns:
 //
-//	[]T: A new slice containing the unique elements from both s1 and s2. The order
-//	     is not guaranteed. Returns an empty slice ([]T{}) if both inputs are nil/empty.
-func Union[T comparable](s1, s2 []T) []T { // CORRECTED constraint to comparable
-	// Determine initial capacity hint
-	capacityHint := len(s1) + len(s2)
-	if capacityHint == 0 && (s1 != nil || s2 != nil) { // Handle case where slices have 0 len but aren't nil
-		// If either is non-nil but empty, capacity can be small for the map.
-		// If both nil, map shouldn't be created anyway.
-		// Heuristic: just use the sum, len(nil) is 0.
-	}
-
-	unionSet := make(map[T]struct{}, capacityHint) // Use hint
+//	[]T: A new slice containing the unique elements from both s1 and s2.
+//	     Returns an empty slice ([]T{}) if both inputs are nil/empty.
+func Union[T comparable](s1, s2 []T) []T {
+	capacityHint := len(s1) + len(s2) // Over-estimation is okay for map capacity
+	unionSet := make(map[T]struct{}, capacityHint)
 
 	for _, v := range s1 {
 		unionSet[v] = struct{}{}
@@ -96,94 +78,78 @@ func Union[T comparable](s1, s2 []T) []T { // CORRECTED constraint to comparable
 		return []T{}
 	}
 
-	result := make([]T, 0, len(unionSet)) // Preallocate result based on actual unique count
+	result := make([]T, 0, len(unionSet))
 	for k := range unionSet {
 		result = append(result, k)
 	}
-
-	// No sorting here! Order depends on map iteration.
 	return result
 }
 
-// Difference returns a new slice containing the unique elements that are present
-// in the first slice (s1) but *not* present in the second slice (s2).
-// The order of elements in the result corresponds to their first appearance in s1.
+// Difference returns a new slice containing unique elements present in s1 but not in s2 (s1 - s2).
+// It requires the element type T to be comparable.
+// The order of elements in the result is not guaranteed.
 //
-// Type Parameters:
+// Args:
 //
-//	T: The type of elements in the slices. Must be comparable.
-//
-// Parameters:
-//
-//	s1: The slice from which to subtract elements.
-//	s2: The slice containing elements to subtract.
+//	s1 ([]T): The slice to subtract from.
+//	s2 ([]T): The slice containing elements to remove.
 //
 // Returns:
 //
-//	[]T: A new slice containing the unique elements from s1 that are not in s2,
-//	     in the order of their first appearance in s1.
-//	     Returns an empty slice ([]T{}) if s1 is nil/empty. Returns a slice
-//	     containing the unique elements of s1 (ordered by first appearance) if s2 is nil/empty.
+//	[]T: A slice containing unique elements from s1 that are not in s2.
+//	     Returns an empty slice if s1 is nil/empty or if all elements of s1 are also in s2.
 func Difference[T comparable](s1, s2 []T) []T {
 	if len(s1) == 0 {
 		return []T{}
 	}
 
-	s2Set := make(map[T]struct{}, len(s2))
-	for _, v := range s2 {
-		s2Set[v] = struct{}{}
+	setB := make(map[T]struct{}, len(s2))
+	for _, item := range s2 {
+		setB[item] = struct{}{}
 	}
 
-	// Use len(s1) as capacity hint, as max difference size is len(s1)
-	addedSet := make(map[T]struct{}, len(s1))
-	result := make([]T, 0)
-
-	for _, v := range s1 {
-		_, existsInS2 := s2Set[v]
-		_, alreadyAdded := addedSet[v]
-
-		if !existsInS2 && !alreadyAdded {
-			result = append(result, v)
-			addedSet[v] = struct{}{}
+	// Use a map to collect unique results from s1 that are not in setB
+	resultSet := make(map[T]struct{})
+	for _, item := range s1 {
+		if _, existsInB := setB[item]; !existsInB {
+			resultSet[item] = struct{}{} // Add to result if not in B
 		}
 	}
 
+	if len(resultSet) == 0 {
+		return []T{}
+	}
+
+	result := make([]T, 0, len(resultSet))
+	for k := range resultSet {
+		result = append(result, k)
+	}
 	return result
 }
 
-// Unique returns a new slice containing only the unique elements from the
-// input slice, preserving the order of first appearance.
+// Unique returns a new slice containing only the unique elements from the input slice,
+// preserving the order of first appearance.
+// It requires the element type T to be comparable.
 //
-// Type Parameters:
+// Args:
 //
-//	T: The type of elements in the slice. Must be comparable.
-//
-// Parameters:
-//
-//	slice: The input slice. Can be nil or empty.
+//	slice []T: The input slice, which may contain duplicates.
 //
 // Returns:
 //
-//	[]T: A new slice containing the unique elements from the input,
-//	     in the order of their first appearance.
-//	     Returns an empty slice ([]T{}) if the input is nil or empty.
+//	[]T: A new slice with duplicates removed. Returns an empty slice if the input is nil or empty.
 func Unique[T comparable](slice []T) []T {
 	if len(slice) == 0 {
 		return []T{}
 	}
 
-	// Preallocate map based on input length (upper bound)
-	seen := make(map[T]struct{}, len(slice))
-	// Start result slice with 0 capacity - append will handle growth.
-	// Alternatively, provide a hint like make([]T, 0, len(slice)/2) - requires testing.
-	result := make([]T, 0)
-
-	for _, v := range slice {
-		if _, ok := seen[v]; !ok {
-			seen[v] = struct{}{}
-			result = append(result, v)
+	seen := make(map[T]struct{}, len(slice)) // Optimized capacity guess
+	result := make([]T, 0, len(slice))       // Capacity can be up to original length
+	for _, item := range slice {
+		if _, ok := seen[item]; !ok {
+			seen[item] = struct{}{}
+			result = append(result, item)
 		}
 	}
-
 	return result
 }

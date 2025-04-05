@@ -26,7 +26,7 @@ func TestReduce(t *testing.T) {
 			name:    "SumIntegers",
 			input:   []int{1, 2, 3, 4, 5},
 			initial: 0, // Start sum at 0
-			reduceFn: func(acc int, next int) int {
+			reduceFn: func(acc, next int) int {
 				return acc + next
 			},
 			want: 15, // 1+2+3+4+5
@@ -35,7 +35,7 @@ func TestReduce(t *testing.T) {
 			name:    "SumIntegersWithInitial",
 			input:   []int{1, 2, 3},
 			initial: 10, // Start sum at 10
-			reduceFn: func(acc int, next int) int {
+			reduceFn: func(acc, next int) int {
 				return acc + next
 			},
 			want: 16, // 10+1+2+3
@@ -44,7 +44,7 @@ func TestReduce(t *testing.T) {
 			name:    "ProductFloats",
 			input:   []float64{1.5, 2.0, 4.0},
 			initial: 1.0,
-			reduceFn: func(acc float64, next float64) float64 {
+			reduceFn: func(acc, next float64) float64 {
 				return acc * next
 			},
 			want: 12.0, // 1.0 * 1.5 * 2.0 * 4.0
@@ -53,7 +53,7 @@ func TestReduce(t *testing.T) {
 			name:    "ConcatenateStrings",
 			input:   []string{"a", "b", "c"},
 			initial: "",
-			reduceFn: func(acc string, next string) string {
+			reduceFn: func(acc, next string) string {
 				return acc + next
 			},
 			want: "abc",
@@ -62,7 +62,7 @@ func TestReduce(t *testing.T) {
 			name:    "ConcatenateStringsWithSeparator",
 			input:   []string{"go", "is", "fun"},
 			initial: "",
-			reduceFn: func(acc string, next string) string {
+			reduceFn: func(acc, next string) string {
 				if acc == "" { // Don't prepend separator for the first element
 					return next
 				}
@@ -74,7 +74,7 @@ func TestReduce(t *testing.T) {
 			name:    "CountEvenNumbers",
 			input:   []int{1, 2, 3, 4, 5, 6},
 			initial: 0, // Initial count
-			reduceFn: func(count int, next int) int {
+			reduceFn: func(count, next int) int {
 				if next%2 == 0 {
 					return count + 1
 				}
@@ -86,7 +86,7 @@ func TestReduce(t *testing.T) {
 			name:    "EmptyInput",
 			input:   []int{}, // Empty slice
 			initial: 100,     // Should return initial value
-			reduceFn: func(acc int, next int) int {
+			reduceFn: func(acc, next int) int {
 				t.Fatal("Reduce function should not be called for empty input") // Safety check
 				return acc + next
 			},
@@ -314,7 +314,7 @@ func generateIntSliceBenchReduce(size int) []int {
 }
 
 // Reducer function for benchmarks (simple integer sum)
-var intSumReducer = func(acc int, i int) int {
+var intSumReducer = func(acc, i int) int {
 	return acc + i
 }
 

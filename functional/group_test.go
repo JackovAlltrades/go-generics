@@ -289,7 +289,7 @@ type groupByBenchItem struct {
 	Value    float64
 }
 
-func generateGroupByData(size int, numCats int) []groupByBenchItem {
+func generateGroupByData(size, numCats int) []groupByBenchItem {
 	if size <= 0 {
 		return []groupByBenchItem{}
 	}
